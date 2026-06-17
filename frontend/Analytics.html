@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en"></html>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>occuvision | analytics</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css" />
+<link rel="stylesheet" href="dashboard.css" />
+<link rel="stylesheet" href="analytics.css" />
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon"><i class="ti ti-grid-dots" aria-hidden="true"></i></div>
+    <div class="logo-text">
+        <div class="name">occuvision</div>
+        <div class="sub">cmu | camt</div>
+    </div>
+  </div>   
+  
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">main</div>
+    <a class="nav-item" href="home.html"><i class="ti ti-home" aria-hidden="true"></i>home</a>
+    <a class="nav-item" href="rooms.html"><i class="ti ti-door" aria-hidden="true"></i>rooms</a>
+    <a class="nav-item" href="analytics.html"><i class="ti ti-chart-bar" aria-hidden="true"></i>analytics</a>
+    <a class="nav-item" href="#">
+        <i class="ti ti-bell" aria-hidden="true"></i>alerts
+        <span class="nav-badge">1</span>
+    </a>
+  </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-label">manage</div>
+            <a class="nav-item" href="#">
+      <i class="ti ti-camera" aria-hidden="true"></i> cameras
+      <span class="nav-badge">2</span>
+    </a>
+    <a class="nav-item" href="#"><i class="ti ti-user" aria-hidden="true"></i>admin</a>
+    <a class="nav-item" href="#"><i class="ti ti-settings" aria-hidden="true"></i>settings</a>
+  </div>
+    </div>
+      <div class="sidebar-footer">
+    <div class="avatar">mm</div>
+    <div class="footer-text">
+      <div class="name">manager mario</div>
+      <div class="role">facility manger</div>
+    </div>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title">analytics &amp; reports</div>
+      <div class="topbar-sub">chiang mai university | college of arts, media &amp; technology</div>
+    </div>
+    <div class="topbar-filters">
+      <div class="filter-pill"><i class="ti ti-door" aria-hidden="true"></i> room 301</div>
+      <div class="filter-pill"><i class="ti ti-calendar" aria-hidden="true"></i> today</div>
+    </div>
+  </div>
+
+    <div class="content">
+
+        <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">total rooms monitored</div>
+        <div class="stat-value">2</div>
+        <div class="stat-trend trend-up"><i class="ti ti-arrow-up" style="font-size:12px"></i> 1 since last month</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">currently occupied</div>
+        <div class="stat-value">2</div>
+        <div class="stat-trend trend-neutral">of 2 rooms active</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">avg occupancy rate</div>
+        <div class="stat-value">64%</div>
+        <div class="stat-trend trend-up"><i class="ti ti-arrow-up" style="font-size:12px"></i> 8% vs last week</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">alerts today</div>
+        <div class="stat-value">1</div>
+        <div class="stat-trend trend-up"><i class="ti ti-arrow-up" style="font-size:12px"></i> 1 overcrowding event</div>
+      </div>
+    </div>
+
+    <div class="analytics-grid"></div>
+
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="section-title">hourly occupancy trend</span>
+        </div>
+        <div class="chart-legend">
+          <div class="legend-item"><span class="legend-swatch"></span> avg occupancy</div>
+          <div class="legend-item"><span class="legend-swatch dashed"></span> capacity limit</div>
+        </div>
+
+        <svg viewBox="0 0 700 280" style="width:100%; height:260px;" id="trend-chart">
+
+          <g stroke="var(--color-border)" stroke-width="1">
+            <line x1="40" y1="20" x2="40" y2="230"></line>
+            <line x1="40" y1="230" x2="690" y2="230"></line>
+          </g>
+
+          <g font-size="10" fill="var(--color-text-muted)" font-family="-apple-system, sans-serif">
+            <text x="32" y="24" text-anchor="end">100%</text>
+            <text x="32" y="66" text-anchor="end">80%</text>
+            <text x="32" y="108" text-anchor="end">60%</text>
+            <text x="32" y="150" text-anchor="end">40%</text>
+            <text x="32" y="192" text-anchor="end">20%</text>
+            <text x="32" y="234" text-anchor="end">0%</text>
+          </g>
+
+          <g font-size="10" fill="var(--color-text-muted)" font-family="-apple-system, sans-serif" text-anchor="middle">
+            <text x="60" y="250">8am</text>
+            <text x="120" y="250">9am</text>
+            <text x="180" y="250">10am</text>
+            <text x="240" y="250">11am</text>
+            <text x="300" y="250">12pm</text>
+            <text x="360" y="250">1pm</text>
+            <text x="420" y="250">2pm</text>
+            <text x="480" y="250">3pm</text>
+            <text x="540" y="250">4pm</text>
+            <text x="600" y="250">5pm</text>
+            <text x="650" y="250">6pm</text>
+          </g>
+
+          <line x1="40" y1="66" x2="690" y2="66" stroke="var(--color-danger)" stroke-width="1.5" stroke-dasharray="6 5"></line>
+
+          <path d="M60,196 C90,160 120,116 150,108 C170,103 195,93 210,90 C225,87 250,108 270,128 C285,142 300,150 300,150 C320,140 345,108 360,95 C375,85 400,98 420,108 C440,118 460,140 480,150 C510,165 580,195 650,212 L650,230 L60,230 Z"
+                fill="var(--color-accent)" opacity="0.08"></path>
+
+          <path d="M60,196 C90,160 120,116 150,108 C170,103 195,93 210,90 C225,87 250,108 270,128 C285,142 300,150 300,150 C320,140 345,108 360,95 C375,85 400,98 420,108 C440,118 460,140 480,150 C510,165 580,195 650,212"
+                fill="none" stroke="var(--color-accent)" stroke-width="2.5" stroke-linecap="round"></path>
+
+          <g fill="var(--color-accent)">
+            <circle cx="60" cy="196" r="4"></circle>
+            <circle cx="150" cy="108" r="4"></circle>
+            <circle cx="210" cy="90" r="4"></circle>
+            <circle cx="300" cy="150" r="4"></circle>
+            <circle cx="360" cy="95" r="4"></circle>
+            <circle cx="420" cy="108" r="4"></circle>
+            <circle cx="480" cy="150" r="4"></circle>
+            <circle cx="650" cy="212" r="4"></circle>
+          </g>
+        </svg>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="section-title">live alerts</span>
+        </div>
+            
+        
+        
+
+        
