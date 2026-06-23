@@ -57,3 +57,21 @@ export async function deleteRoom(roomId) {
   if (!res.ok) throw new Error(`deleteRoom: ${res.status}`)
   return res.json()
 }
+
+export async function fetchAlerts() {
+  const res = await fetch('/api/alerts')
+  if (!res.ok) throw new Error(`fetchAlerts: ${res.status}`)
+  return res.json()
+}
+
+export async function acknowledgeAlert(id) {
+  const res = await fetch(`/api/alerts/${id}/acknowledge`, { method: 'PUT' })
+  if (!res.ok) throw new Error(`acknowledgeAlert: ${res.status}`)
+  return res.json()
+}
+
+export async function deleteAlert(id) {
+  const res = await fetch(`/api/alerts/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`deleteAlert: ${res.status}`)
+  return res.json()
+}

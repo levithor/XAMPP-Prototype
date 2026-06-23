@@ -1,0 +1,126 @@
+.alerts-grid {
+  display: grid;
+  grid-template-columns: 1fr 0.45fr;
+  gap: 14px;
+}
+
+.alert-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 0.5px solid var(--color-border);
+  gap: 12px;
+}
+
+.alert-row:last-child { border-bottom: none; }
+
+.alert-row-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.alert-dot-large {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+
+.dot-danger  { background: var(--color-danger); }
+.dot-warning { background: var(--color-warning); }
+.dot-info    { background: var(--color-accent); }
+
+.alert-row-title {
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.alert-row-meta {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.alert-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.alert-btn-ack {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-success);
+  background: var(--color-success-bg);
+  border: none;
+  border-radius: 20px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.alert-btn-del {
+  font-size: 14px;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.alert-btn-del:hover { color: var(--color-danger); }
+
+.breakdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 0.5px solid var(--color-border);
+}
+
+.breakdown-item:last-child { border-bottom: none; }
+
+.breakdown-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.breakdown-label { font-size: 13px; }
+
+.breakdown-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.breakdown-count {
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 16px;
+  text-align: right;
+}
+
+/* reuse filter-chip from rooms */
+.filter-chip {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border: 0.5px solid var(--color-border);
+  border-radius: 20px;
+  padding: 6px 13px;
+  cursor: pointer;
+}
+.filter-chip.active {
+  background: #1a1a1a;
+  color: #fff;
+  border-color: #1a1a1a;
+}
