@@ -1,7 +1,3 @@
-// All API calls go through here.
-// Because Vite proxies /api → http://localhost:3000, we use relative paths —
-// no hardcoded localhost URL, works the same in dev and when deployed.
-
 export async function fetchLatestOccupancy() {
   const res = await fetch('/api/occupancy/latest')
   if (!res.ok) throw new Error(`fetchLatestOccupancy: ${res.status}`)
@@ -65,7 +61,7 @@ export async function fetchAlerts() {
 }
 
 export async function acknowledgeAlert(id) {
-  const res = await fetch(`/api/alerts/${id}/acknowledge`, { method: 'PUT' })
+  const res = await fetch(`/api/alerts/${id}/resolve`, { method: 'PATCH' })
   if (!res.ok) throw new Error(`acknowledgeAlert: ${res.status}`)
   return res.json()
 }

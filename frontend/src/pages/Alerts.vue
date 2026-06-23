@@ -55,24 +55,21 @@
             no active alerts
           </div>
 
-          <div v-for="alert in activeAlerts" :key="alert.id" class="alert-row">
+          <div v-for="alert in activeAlerts" :key="alert.alert_id" class="alert-row">
             <div class="alert-row-left">
-              <div class="alert-dot-large" :class="dotClass(alert.type)"></div>
+              <div class="alert-dot-large" :class="dotClass(alert.alert_type)"></div>
               <div>
                 <div class="alert-row-title">{{ alert.message }}</div>
                 <div class="alert-row-meta">
-                  {{ alert.room_name }} &nbsp;·&nbsp; {{ formatTime(alert.created_at) }}
-                  <span v-if="alert.occupancy_count && alert.capacity">
-                    &nbsp;·&nbsp; {{ alert.occupancy_count }}/{{ alert.capacity }} capacity
-                  </span>
+                  room {{ alert.room_id }} &nbsp;·&nbsp; {{ formatTime(alert.created_at) }}
                 </div>
               </div>
             </div>
             <div class="alert-row-actions">
-              <button class="alert-btn-ack" @click="ackAlert(alert.id)">
+              <button class="alert-btn-ack" @click="ackAlert(alert.alert_id)">
                 <i class="ti ti-check" /> acknowledge
               </button>
-              <button class="alert-btn-del" @click="delAlert(alert.id)">
+              <button class="alert-btn-del" @click="delAlert(alert.alert_id)">
                 <i class="ti ti-trash" />
               </button>
             </div>
@@ -131,25 +128,27 @@
                 no alerts found
               </td>
             </tr>
-            <tr v-for="alert in filteredAlerts" :key="'h-' + alert.id">
+            <tr v-for="alert in filteredAlerts" :key="'h-' + alert.alert_id">
               <td>{{ alert.message }}</td>
-              <td class="muted">{{ alert.room_name }}</td>
+              <td class="muted">room {{ alert.room_id }}</td>
               <td>
-                <span class="room-badge" :class="typeBadge(alert.type)">{{ typeLabel(alert.type) }}</span>
+                <span class="room-badge" :class="typeBadge(alert.alert_type)">
+                  {{ typeLabel(alert.alert_type) }}
+                </span>
               </td>
               <td class="muted">{{ formatTime(alert.created_at) }}</td>
               <td>
-                <span class="room-badge" :class="alert.acknowledged ? 'badge-success' : 'badge-danger'">
-                  {{ alert.acknowledged ? 'acknowledged' : 'active' }}
+                <span class="room-badge" :class="alert.is_resolved ? 'badge-success' : 'badge-danger'">
+                  {{ alert.is_resolved ? 'acknowledged' : 'active' }}
                 </span>
               </td>
               <td class="row-actions">
-                <i v-if="!alert.acknowledged"
+                <i v-if="!alert.is_resolved"
                    class="ti ti-check" title="acknowledge"
-                   @click="ackAlert(alert.id)"
+                   @click="ackAlert(alert.alert_id)"
                    style="margin-right:10px; cursor:pointer;" />
                 <i class="ti ti-trash" title="delete"
-                   @click="delAlert(alert.id)"
+                   @click="delAlert(alert.alert_id)"
                    style="cursor:pointer;" />
               </td>
             </tr>
@@ -178,34 +177,34 @@ const filters = [
 ]
 
 const activeAlerts = computed(() =>
-  alerts.value.filter(a => !a.acknowledged)
+  alerts.value.filter(a => !a.is_resolved)
 )
 
 const filteredAlerts = computed(() => {
   if (activeFilter.value === 'all')          return alerts.value
-  if (activeFilter.value === 'active')       return alerts.value.filter(a => !a.acknowledged)
-  if (activeFilter.value === 'acknowledged') return alerts.value.filter(a => a.acknowledged)
-  return alerts.value.filter(a => a.type === activeFilter.value)
+  if (activeFilter.value === 'active')       return alerts.value.filter(a => !a.is_resolved)
+  if (activeFilter.value === 'acknowledged') return alerts.value.filter(a => a.is_resolved)
+  return alerts.value.filter(a => a.alert_type === activeFilter.value)
 })
 
-const unacknowledgedCount = computed(() => alerts.value.filter(a => !a.acknowledged).length)
-const acknowledgedCount   = computed(() => alerts.value.filter(a => a.acknowledged).length)
-const overcrowdingCount   = computed(() => alerts.value.filter(a => a.type === 'overcrowding').length)
-const unusualCount        = computed(() => alerts.value.filter(a => a.type === 'unusual_activity').length)
+const unacknowledgedCount = computed(() => alerts.value.filter(a => !a.is_resolved).length)
+const acknowledgedCount   = computed(() => alerts.value.filter(a => a.is_resolved).length)
+const overcrowdingCount   = computed(() => alerts.value.filter(a => a.alert_type === 'overcrowding').length)
+const unusualCount        = computed(() => alerts.value.filter(a => a.alert_type === 'unusual_activity').length)
 
 const breakdown = computed(() => {
   const total = alerts.value.length || 1
+  const systemCount = alerts.value.filter(a => a.alert_type === 'system').length
   return [
-    { label: 'overcrowding',    count: overcrowdingCount.value, color: 'var(--color-danger)',  pct: Math.round(overcrowdingCount.value / total * 100) },
-    { label: 'unusual activity', count: unusualCount.value,     color: 'var(--color-warning)', pct: Math.round(unusualCount.value / total * 100) },
-    { label: 'system',          count: alerts.value.filter(a => a.type === 'system').length, color: 'var(--color-accent)', pct: Math.round(alerts.value.filter(a => a.type === 'system').length / total * 100) },
+    { label: 'overcrowding',     count: overcrowdingCount.value, color: 'var(--color-danger)',  pct: Math.round(overcrowdingCount.value / total * 100) },
+    { label: 'unusual activity', count: unusualCount.value,      color: 'var(--color-warning)', pct: Math.round(unusualCount.value / total * 100) },
+    { label: 'system',           count: systemCount,             color: 'var(--color-accent)',  pct: Math.round(systemCount / total * 100) },
   ]
 })
 
 function formatTime(ts) {
   if (!ts) return '--'
-  const d = new Date(ts)
-  return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 function dotClass(type) {
@@ -228,7 +227,7 @@ function typeLabel(type) {
 
 async function ackAlert(id) {
   try {
-    await acknowledgeAlert(id)
+    await acknowledgeAlert(id);
     await refresh()
   } catch (err) { console.warn(err) }
 }
@@ -236,14 +235,14 @@ async function ackAlert(id) {
 async function delAlert(id) {
   if (!confirm('delete this alert from history?')) return
   try {
-    await deleteAlert(id)
+    await deleteAlert(id);
     await refresh()
   } catch (err) { console.warn(err) }
 }
 
 async function acknowledgeAll() {
   try {
-    await Promise.all(activeAlerts.value.map(a => acknowledgeAlert(a.id)))
+    await Promise.all(activeAlerts.value.map(a => acknowledgeAlert(a.alert_id)))
     await refresh()
   } catch (err) { console.warn(err) }
 }
