@@ -13,5 +13,20 @@ module.exports = app;
 const roomRoutes =
     require('./routes/roomRoutes');
 
-app.use('/api/rooms', roomRoutes);
+const cameraRoutes =
+    require('./routes/cameraRoutes');
 
+const occupancyRoutes =
+    require('./routes/occupancyRoutes');
+
+const alertRoutes =
+    require('./routes/alertRoutes');
+
+const adminRoutes =
+    require('./routes/adminRoutes');
+
+app.use('/api/rooms', roomRoutes);
+app.use('/api/cameras', cameraRoutes);
+app.use('/api/occupancy', occupancyRoutes);
+app.use('/api/alerts', alertRoutes);
+app.use('/api/admins', adminRoutes);
