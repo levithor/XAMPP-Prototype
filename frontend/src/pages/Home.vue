@@ -1,7 +1,6 @@
 <template>
   <div class="main" style="display:contents">
 
-    <!-- TOPBAR -->
     <div class="topbar">
       <div>
         <div class="topbar-title">{{ greeting }}, mario</div>
@@ -18,7 +17,6 @@
 
     <div class="content">
 
-      <!-- STAT CARDS -->
       <div class="stat-grid">
         <div class="stat-card">
           <div class="stat-icon blue"><i class="ti ti-layout-grid" /></div>
@@ -48,7 +46,6 @@
         </div>
       </div>
 
-      <!-- LIVE ROOM STATUS -->
       <div>
         <div class="section-header">
           <span class="section-title">live room status</span>
@@ -79,10 +76,8 @@
         </div>
       </div>
 
-      <!-- BOTTOM ROW -->
       <div class="bottom-grid">
 
-        <!-- ACTIVITY FEED (static for now — wire to /api/alerts later) -->
         <div class="panel">
           <div class="panel-header">
             <span class="section-title">activity feed</span>
@@ -97,7 +92,6 @@
           </div>
         </div>
 
-        <!-- CAMERA STATUS -->
         <div class="panel">
           <div class="panel-header">
             <span class="section-title">camera status</span>
@@ -125,7 +119,6 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { fetchLatestOccupancy } from '../api.js'
 import { usePolling } from '../other/usePolling.js'
 
-// ── datetime ──────────────────────────────────
 const datetime = ref('')
 const greeting = ref('good morning')
 
@@ -145,7 +138,6 @@ let clockTimer
 onMounted(() => { updateDateTime(); clockTimer = setInterval(updateDateTime, 60000) })
 onUnmounted(() => clearInterval(clockTimer))
 
-// ── live data ─────────────────────────────────
 const rooms = ref([])
 const apiOnline = ref(true)
 
@@ -173,7 +165,6 @@ async function refresh() {
 
 usePolling(refresh, 5000)
 
-// ── helpers ───────────────────────────────────
 function statusFor(room) {
   const pct = ((room.occupancy_count ?? 0) / (room.capacity ?? 40)) * 100
   if (pct >= 100) return { label: 'over capacity', badge: 'badge-danger', fill: 'fill-danger' }
@@ -193,7 +184,6 @@ function timeAgo(ts) {
   return `${mins} min ago`
 }
 
-// Static feed — replace with fetchAlerts() once that endpoint exists
 const feed = [
   { text: 'room 301 exceeded capacity — 48 of 40', time: '02:46 today', color: 'var(--color-danger)' },
   { text: 'room 205 approaching capacity threshold',  time: '02:45 today', color: 'var(--color-warning)' },
