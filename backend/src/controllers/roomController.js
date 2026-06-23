@@ -1,34 +1,106 @@
 const db = require('../config/db');
 
 exports.getRooms = async (req, res) => {
-    const [rows] = await db.query(
-        'SELECT * FROM rooms'
-    );
+    try {
+        const [rows] = await db.query('SELECT * FROM rooms');
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
 
-    res.json(rows);
+exports.getRoomById = async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT * FROM rooms WHERE room_id = ?',
+            [req.params.room_id]
+        );
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'Room not found' });
+        }
+        res.json(rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 };
 
 exports.createRoom = async (req, res) => {
-
-    const {
-        room_name,
-        capacity_limit,
-        occupancy_threshold
-    } = req.body;
-
-    const [result] = await db.query(
-        `INSERT INTO rooms
-        (room_name, capacity_limit, occupancy_threshold)
-        VALUES (?, ?, ?)`,
-        [
+    try {
+        const {
             room_name,
             capacity_limit,
             occupancy_threshold
-        ]
-    );
+        } = req.body;
 
-    res.json({
-        message: "Room created",
-        room_id: result.insertId
-    });
+        if (!room_name) {
+            return res.status(400).json({ error: 'room_name is required' });
+        }
+
+        const [result] = await db.query(
+            `INSERT INTO rooms
+            (room_name, capacity_limit, occupancy_threshold)
+            VALUES (?, ?, ?)`,
+            [
+                room_name,
+                capacity_limit ?? 40,
+                occupancy_threshold ?? 35
+            ]
+        );
+
+        res.json({
+            message: 'Room created',
+            room_id: result.insertId
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+exports.updateRoom = async (req, res) => {
+    try {
+        const {
+            room_name,
+            capacity_limit,
+            occupancy_threshold
+        } = req.body;
+
+        const [result] = await db.query(
+            `UPDATE rooms SET
+                room_name           = COALESCE(?, room_name),
+                capacity_limit      = COALESCE(?, capacity_limit),
+                occupancy_threshold = COALESCE(?, occupancy_threshold)
+            WHERE room_id = ?`,
+            [
+                room_name,
+                capacity_limit,
+                occupancy_threshold,
+                req.params.room_id
+            ]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Room not found' });
+        }
+
+        res.json({ message: 'Room updated' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+exports.deleteRoom = async (req, res) => {
+    try {
+        const [result] = await db.query(
+            'DELETE FROM rooms WHERE room_id = ?',
+            [req.params.room_id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Room not found' });
+        }
+
+        res.json({ message: 'Room deleted' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 };
