@@ -14,7 +14,6 @@
 
     <div class="content">
 
-      <!-- STAT CARDS -->
       <div class="stat-grid">
         <div class="stat-card">
           <div class="stat-label">total rooms monitored</div>
@@ -41,7 +40,6 @@
         </div>
       </div>
 
-      <!-- CHART + LIVE ALERTS -->
       <div class="analytics-grid">
 
         <div class="panel">
@@ -54,12 +52,10 @@
           </div>
 
           <svg viewBox="0 0 700 280" style="width:100%; height:260px;">
-            <!-- axes -->
             <g stroke="var(--color-border)" stroke-width="1">
               <line x1="40" y1="20" x2="40" y2="230" />
               <line x1="40" y1="230" x2="690" y2="230" />
             </g>
-            <!-- y labels -->
             <g font-size="10" fill="var(--color-text-muted)" font-family="-apple-system,sans-serif">
               <text x="32" y="24" text-anchor="end">100%</text>
               <text x="32" y="66" text-anchor="end">80%</text>
@@ -68,11 +64,9 @@
               <text x="32" y="192" text-anchor="end">20%</text>
               <text x="32" y="234" text-anchor="end">0%</text>
             </g>
-            <!-- x labels -->
             <g font-size="10" fill="var(--color-text-muted)" font-family="-apple-system,sans-serif" text-anchor="middle">
               <text v-for="(lbl, i) in xLabels" :key="lbl" :x="60 + i*59" y="250">{{ lbl }}</text>
             </g>
-            <!-- 80% capacity dashed line -->
             <line x1="40" y1="66" x2="690" y2="66"
                   stroke="var(--color-danger)" stroke-width="1.5" stroke-dasharray="6 5" />
             <!-- area + line — computed from real API data -->
@@ -108,7 +102,6 @@
         </div>
       </div>
 
-      <!-- UTILIZATION TABLE + HEATMAP -->
       <div class="analytics-grid" style="grid-template-columns: 0.85fr 1fr;">
 
         <div class="panel">
@@ -142,7 +135,6 @@
           </table>
         </div>
 
-        <!-- HEATMAP -->
         <div class="panel">
           <div class="panel-header">
             <span class="section-title">weekly peak hours heatmap</span>
@@ -181,12 +173,10 @@ import { ref, computed } from 'vue'
 import { fetchHourlyTrend, fetchWeeklyHeatmap, fetchRoomUtilization } from '../api.js'
 import { usePolling } from '../other/usePolling.js'
 
-// ── data refs ─────────────────────────────────
 const hourlyTrend  = ref([])
 const heatmapData  = ref([])
 const utilization  = ref([])
 
-// ── stat cards ────────────────────────────────
 const stats = computed(() => ({
   totalRooms:   utilization.value.length,
   occupiedRooms: utilization.value.filter(r => (r.occupancy_count ?? 0) > 0).length,
@@ -196,12 +186,10 @@ const stats = computed(() => ({
   overCapacity: utilization.value.filter(r => (r.occupancy_count ?? 0) >= (r.capacity ?? 40)).length,
 }))
 
-// ── live alerts ───────────────────────────────
 const alertRooms = computed(() =>
   utilization.value.filter(r => ((r.occupancy_count ?? 0) / (r.capacity ?? 40)) * 100 >= 85)
 )
 
-// ── trend chart ───────────────────────────────
 const xLabels = ['8am','9am','10am','11am','12pm','1pm','2pm','3pm','4pm','5pm','6pm']
 const CHART_HOURS = [8,9,10,11,12,13,14,15,16,17,18]
 
@@ -225,7 +213,6 @@ const areaPath = computed(() => {
   return `${linePath.value} L${pts[pts.length-1].x},230 L${pts[0].x},230 Z`
 })
 
-// ── heatmap ───────────────────────────────────
 const HEATMAP_HOURS = [8,10,12,14,16,18,20,22]
 const heatmapHourLabels = ['8am','10am','12pm','2pm','4pm','6pm','8pm','10pm']
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
@@ -260,7 +247,6 @@ function heatLevel(v) {
   return 0
 }
 
-// ── utilization table helpers ─────────────────
 function utilPct(room) {
   return Math.min(100, Math.round(((room.occupancy_count ?? 0) / (room.capacity ?? 40)) * 100))
 }
@@ -282,7 +268,6 @@ function formatTime(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-// ── polling ───────────────────────────────────
 async function refresh() {
   try {
     const [trend, heatmap, util] = await Promise.all([

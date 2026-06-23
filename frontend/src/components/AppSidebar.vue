@@ -40,12 +40,11 @@
 </template>
 
 <script setup>
-// router-link automatically adds the .router-link-active class when the
-// route matches, which maps onto your existing .nav-item.active CSS rule.
+
 </script>
 
 <style>
-/* Make router-link-active match your existing .nav-item.active style */
+
 .nav-item.router-link-active {
   background: #f0f0ee;
   color: var(--color-text-primary);

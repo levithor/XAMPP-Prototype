@@ -63,7 +63,7 @@
           <tbody>
             <tr v-if="rooms.length === 0">
               <td colspan="6" style="padding:16px 0; color:var(--color-text-muted); font-size:13px;">
-                no rooms configured yet
+                no rooms yet
               </td>
             </tr>
             <tr v-for="room in rooms" :key="'tr-' + room.room_id">
