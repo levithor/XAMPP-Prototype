@@ -50,7 +50,6 @@ async function refreshBadge() {
     const alerts = await fetchAlerts()
     alertCount.value = alerts.filter(a => !a.acknowledged).length
   } catch {
-    // backend not running yet — keep showing 0
   }
 }
 

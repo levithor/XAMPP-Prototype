@@ -1,5 +1,6 @@
 const db = require('../config/db');
 
+// GET all rooms
 exports.getRooms = async (req, res) => {
     try {
         const [rows] = await db.query('SELECT * FROM rooms');
@@ -9,6 +10,7 @@ exports.getRooms = async (req, res) => {
     }
 };
 
+// GET single room by ID
 exports.getRoomById = async (req, res) => {
     try {
         const [rows] = await db.query(
@@ -24,6 +26,7 @@ exports.getRoomById = async (req, res) => {
     }
 };
 
+// POST create a new room
 exports.createRoom = async (req, res) => {
     try {
         const {
@@ -56,6 +59,7 @@ exports.createRoom = async (req, res) => {
     }
 };
 
+// PUT update a room
 exports.updateRoom = async (req, res) => {
     try {
         const {
@@ -88,6 +92,7 @@ exports.updateRoom = async (req, res) => {
     }
 };
 
+// DELETE a room
 exports.deleteRoom = async (req, res) => {
     try {
         const [result] = await db.query(

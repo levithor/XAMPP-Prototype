@@ -25,16 +25,16 @@
         <div v-for="room in filteredRooms" :key="room.room_id"
              class="room-card" :class="accentFor(room)">
           <div class="room-card-header">
-            <div class="room-name">{{ room.name }}</div>
+            <div class="room-name">{{ room.room_name }}</div>
             <span class="room-badge" :class="statusFor(room).badge">{{ statusFor(room).label }}</span>
           </div>
-          <div class="room-loc">{{ location(room) }}</div>
-          <div class="room-count">{{ room.occupancy_count ?? 0 }} <span>/ {{ room.capacity }} max</span></div>
+          <div class="room-loc">capacity limit: {{ room.capacity_limit }}</div>
+          <div class="room-count">-- <span>/ {{ room.capacity_limit }} max</span></div>
           <div class="progress-bar">
-            <div class="progress-fill" :class="statusFor(room).fill" :style="{ width: pct(room) + '%' }"></div>
+            <div class="progress-fill" :class="statusFor(room).fill" style="width: 0%"></div>
           </div>
           <div class="room-card-footer">
-            <span><i class="ti ti-camera" style="font-size:13px;vertical-align:-2px" /> {{ room.camera_id || 'no camera' }}</span>
+            <span>threshold: {{ room.occupancy_threshold }}</span>
             <div class="room-card-actions">
               <i class="ti ti-edit" title="edit room" @click="openEditModal(room)" />
               <i class="ti ti-trash" title="delete room" @click="confirmDelete(room)" />
@@ -57,21 +57,22 @@
         <table class="rooms-table">
           <thead>
             <tr>
-              <th>room</th><th>floor</th><th>camera</th><th>threshold</th><th>status</th><th></th>
+              <th>room name</th>
+              <th>capacity limit</th>
+              <th>threshold</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="rooms.length === 0">
-              <td colspan="6" style="padding:16px 0; color:var(--color-text-muted); font-size:13px;">
-                no rooms yet
+              <td colspan="4" style="padding:16px 0; color:var(--color-text-muted); font-size:13px;">
+                no rooms configured yet
               </td>
             </tr>
             <tr v-for="room in rooms" :key="'tr-' + room.room_id">
-              <td>{{ room.name }}</td>
-              <td class="muted">{{ room.floor || '--' }}</td>
-              <td class="muted">{{ room.camera_id || '--' }}</td>
-              <td class="muted">{{ room.capacity }} people</td>
-              <td><span class="room-badge" :class="statusFor(room).badge">{{ statusFor(room).label }}</span></td>
+              <td>{{ room.room_name }}</td>
+              <td class="muted">{{ room.capacity_limit }} people</td>
+              <td class="muted">{{ room.occupancy_threshold }} people</td>
               <td class="row-actions">
                 <i class="ti ti-edit" title="edit" @click="openEditModal(room)" style="margin-right:10px; cursor:pointer;" />
                 <i class="ti ti-trash" title="delete" @click="confirmDelete(room)" style="cursor:pointer;" />
@@ -91,28 +92,16 @@
 
         <div class="modal-fields">
           <div class="modal-field">
-            <label>room id</label>
-            <input v-model="form.room_id" :disabled="!!editingRoom" placeholder="e.g. 301" />
-          </div>
-          <div class="modal-field">
             <label>room name</label>
-            <input v-model="form.name" placeholder="e.g. Room 301" />
+            <input v-model="form.room_name" placeholder="e.g. Room 301" />
           </div>
           <div class="modal-field">
-            <label>building</label>
-            <input v-model="form.building" placeholder="e.g. CAMT Building" />
+            <label>capacity limit</label>
+            <input v-model.number="form.capacity_limit" type="number" min="1" placeholder="e.g. 40" />
           </div>
           <div class="modal-field">
-            <label>floor</label>
-            <input v-model="form.floor" placeholder="e.g. Floor 3" />
-          </div>
-          <div class="modal-field">
-            <label>capacity threshold</label>
-            <input v-model.number="form.capacity" type="number" min="1" placeholder="e.g. 40" />
-          </div>
-          <div class="modal-field">
-            <label>camera id</label>
-            <input v-model="form.camera_id" placeholder="e.g. CAM-301" />
+            <label>occupancy threshold (alert at)</label>
+            <input v-model.number="form.occupancy_threshold" type="number" min="1" placeholder="e.g. 35" />
           </div>
         </div>
 
@@ -141,46 +130,25 @@ const showModal = ref(false)
 const editingRoom = ref(null)
 const modalError = ref('')
 
-const form = ref({ room_id: '', name: '', building: '', floor: '', capacity: 40, camera_id: '' })
+const form = ref({ room_name: '', capacity_limit: 40, occupancy_threshold: 35 })
 
 const filters = [
   { key: 'all',    label: 'all rooms' },
-  { key: 'over',   label: 'over capacity' },
-  { key: 'near',   label: 'near capacity' },
-  { key: 'normal', label: 'normal' },
+  { key: 'active', label: 'active' },
 ]
 
-const subtitle = computed(() => {
-  const buildings = [...new Set(rooms.value.map(r => r.building).filter(Boolean))]
-  const b = buildings.length ? buildings.join(', ') : 'camt building'
-  return `${b} · ${rooms.value.length} room${rooms.value.length !== 1 ? 's' : ''} configured`
-})
+const subtitle = computed(() =>
+  `${rooms.value.length} room${rooms.value.length !== 1 ? 's' : ''} configured`
+)
 
-const filteredRooms = computed(() => {
-  if (activeFilter.value === 'all') return rooms.value
-  return rooms.value.filter(r => statusFor(r).key === activeFilter.value)
-})
+const filteredRooms = computed(() => rooms.value)
 
 function statusFor(room) {
-  const p = pct(room)
-  if (p >= 100) return { label: 'over capacity', badge: 'badge-danger', fill: 'fill-danger', key: 'over' }
-  if (p >= 85)  return { label: 'near capacity', badge: 'badge-warning', fill: 'fill-warning', key: 'near' }
   return { label: 'normal', badge: 'badge-success', fill: 'fill-success', key: 'normal' }
 }
 
 function accentFor(room) {
-  const k = statusFor(room).key
-  if (k === 'over') return 'accent-danger'
-  if (k === 'near') return 'accent-warning'
   return 'accent-success'
-}
-
-function pct(room) {
-  return Math.min(100, Math.round(((room.occupancy_count ?? 0) / (room.capacity ?? 40)) * 100))
-}
-
-function location(room) {
-  return [room.building, room.floor].filter(Boolean).join(' | ') || 'no location set'
 }
 
 async function refresh() {
@@ -192,7 +160,7 @@ usePolling(refresh, 5000)
 
 function openAddModal() {
   editingRoom.value = null
-  form.value = { room_id: '', name: '', building: '', floor: '', capacity: 40, camera_id: '' }
+  form.value = { room_name: '', capacity_limit: 40, occupancy_threshold: 35 }
   modalError.value = ''
   showModal.value = true
 }
@@ -200,12 +168,9 @@ function openAddModal() {
 function openEditModal(room) {
   editingRoom.value = room
   form.value = {
-    room_id:   room.room_id,
-    name:      room.name      || '',
-    building:  room.building  || '',
-    floor:     room.floor     || '',
-    capacity:  room.capacity  ?? 40,
-    camera_id: room.camera_id || '',
+    room_name:           room.room_name           || '',
+    capacity_limit:      room.capacity_limit       ?? 40,
+    occupancy_threshold: room.occupancy_threshold  ?? 35,
   }
   modalError.value = ''
   showModal.value = true
@@ -218,17 +183,20 @@ function closeModal() {
 
 async function submitModal() {
   modalError.value = ''
-  if (!form.value.name) { modalError.value = 'room name is required'; return }
-  if (!editingRoom.value && !form.value.room_id) { modalError.value = 'room id is required'; return }
+  if (!form.value.room_name) { modalError.value = 'room name is required'; return }
   try {
     if (editingRoom.value) {
       await updateRoom(editingRoom.value.room_id, {
-        name: form.value.name, building: form.value.building,
-        floor: form.value.floor, capacity: form.value.capacity,
-        camera_id: form.value.camera_id || null
+        room_name:           form.value.room_name,
+        capacity_limit:      form.value.capacity_limit,
+        occupancy_threshold: form.value.occupancy_threshold,
       })
     } else {
-      await addRoom({ ...form.value, camera_id: form.value.camera_id || null })
+      await addRoom({
+        room_name:           form.value.room_name,
+        capacity_limit:      form.value.capacity_limit,
+        occupancy_threshold: form.value.occupancy_threshold,
+      })
     }
     closeModal()
     await refresh()
@@ -238,7 +206,7 @@ async function submitModal() {
 }
 
 async function confirmDelete(room) {
-  if (!confirm(`delete "${room.name}"? this will also remove all its occupancy history.`)) return
+  if (!confirm(`delete "${room.room_name}"?`)) return
   try { await deleteRoom(room.room_id); await refresh() }
   catch (err) { alert(`could not delete room: ${err.message}`) }
 }
