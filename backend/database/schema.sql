@@ -1,3 +1,4 @@
+DROP DATABASE IF EXISTS occuvision;
 CREATE DATABASE IF NOT EXISTS occuvision;
 USE occuvision;
 
