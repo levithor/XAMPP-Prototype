@@ -82,3 +82,50 @@ exports.resolveAlert = async (req, res) => {
         });
     }
 };
+
+exports.unresolveAlert = async (req, res) => {
+
+    try {
+
+        await db.query(
+            `
+            UPDATE alerts
+            SET is_resolved = FALSE
+            WHERE alert_id = ?
+            `,
+            [req.params.id]
+        );
+
+        res.json({
+            message: 'Alert unresolved'
+        });
+
+    } catch (err) {
+        res.status(500).json({
+            error: err.message
+        });
+    }
+};
+
+exports.deleteAlert = async (req, res) => {
+
+    try {
+
+        await db.query(
+            `
+            DELETE FROM alerts
+            WHERE alert_id = ?
+            `,
+            [req.params.id]
+        );
+
+        res.json({
+            message: 'Alert deleted'
+        });
+
+    } catch (err) {
+        res.status(500).json({
+            error: err.message
+        });
+    }
+};

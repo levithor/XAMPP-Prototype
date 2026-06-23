@@ -8,8 +8,6 @@ app.get("/", (req, res) => {
     res.send("Server is running!");
 });
 
-module.exports = app;
-
 const roomRoutes =
     require('./routes/roomRoutes');
 
@@ -30,3 +28,5 @@ app.use('/api/cameras', cameraRoutes);
 app.use('/api/occupancy', occupancyRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/admins', adminRoutes);
+
+module.exports = app;

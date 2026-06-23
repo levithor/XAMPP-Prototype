@@ -66,6 +66,12 @@ export async function acknowledgeAlert(id) {
   return res.json()
 }
 
+export async function unacknowledgeAlert(id) {
+  const res = await fetch(`/api/alerts/${id}/unresolve`, { method: 'PATCH' })
+  if (!res.ok) throw new Error(`unacknowledgeAlert: ${res.status}`)
+  return res.json()
+}
+
 export async function deleteAlert(id) {
   const res = await fetch(`/api/alerts/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error(`deleteAlert: ${res.status}`)

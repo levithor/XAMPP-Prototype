@@ -13,4 +13,10 @@ router.post('/',
 router.patch('/:id/resolve',
     alertController.resolveAlert);
 
+router.patch('/:id/unresolve',
+    alertController.unresolveAlert);
+
+router.delete('/:id',
+    alertController.deleteAlert);
+
 module.exports = router;

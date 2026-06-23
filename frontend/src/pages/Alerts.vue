@@ -147,6 +147,10 @@
                    class="ti ti-check" title="acknowledge"
                    @click="ackAlert(alert.alert_id)"
                    style="margin-right:10px; cursor:pointer;" />
+                <i v-else
+                   class="ti ti-x" title="unacknowledge"
+                   @click="unackAlert(alert.alert_id)"
+                   style="margin-right:10px; cursor:pointer;" />
                 <i class="ti ti-trash" title="delete"
                    @click="delAlert(alert.alert_id)"
                    style="cursor:pointer;" />
@@ -162,7 +166,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { fetchAlerts, acknowledgeAlert, deleteAlert } from '../api.js'
+import { fetchAlerts, acknowledgeAlert, unacknowledgeAlert, deleteAlert } from '../api.js'
 import { usePolling } from '../other/usePolling.js'
 
 const alerts = ref([])
@@ -232,6 +236,13 @@ async function ackAlert(id) {
   } catch (err) { console.warn(err) }
 }
 
+async function unackAlert(id) {
+  try {
+    await unacknowledgeAlert(id);
+    await refresh()
+  } catch (err) { console.warn(err) }
+}
+
 async function delAlert(id) {
   if (!confirm('delete this alert from history?')) return
   try {
@@ -248,8 +259,10 @@ async function acknowledgeAll() {
 }
 
 async function refresh() {
-  try { alerts.value = await fetchAlerts() }
-  catch (err) { console.warn('Alerts refresh failed:', err.message) }
+  try {
+    const data = await fetchAlerts()
+    alerts.value = data.map(a => ({ ...a, is_resolved: Boolean(a.is_resolved) }))
+  } catch (err) { console.warn('Alerts refresh failed:', err.message) }
 }
 
 usePolling(refresh, 10000)
