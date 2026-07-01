@@ -9,6 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
+    "jsonwebtoken": "^9.0.3",
     "vue": "^3.4.0",
     "vue-router": "^4.3.0"
   },

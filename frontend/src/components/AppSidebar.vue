@@ -30,27 +30,39 @@
     </div>
 
     <div class="sidebar-footer">
-      <div class="avatar">mm</div>
-      <div class="footer-text">
-        <div class="name">manager mario</div>
-        <div class="role">facility manager</div>
+      <div class="avatar">{{ initials }}</div>
+      <div class="footer-text" style="flex:1; min-width:0;">
+        <div class="name">{{ user?.name || 'admin' }}</div>
+        <div class="role">{{ user?.role || 'facility manager' }}</div>
       </div>
+      <button class="logout-btn" title="sign out" @click="$emit('logout')">
+        <i class="ti ti-logout" />
+      </button>
     </div>
   </aside>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { fetchAlerts } from '../api.js'
 
+const props = defineProps({
+  user: { type: Object, default: null }
+})
+defineEmits(['logout'])
+
 const alertCount = ref(0)
+
+const initials = computed(() => {
+  const name = props.user?.name || ''
+  return name.split(' ').map(w => w[0]).join('').slice(0, 2).toLowerCase() || 'ad'
+})
 
 async function refreshBadge() {
   try {
     const alerts = await fetchAlerts()
     alertCount.value = alerts.filter(a => !a.acknowledged).length
-  } catch {
-  }
+  } catch {}
 }
 
 let timer
@@ -63,5 +75,24 @@ onUnmounted(() => clearInterval(timer))
   background: #f0f0ee;
   color: var(--color-text-primary);
   font-weight: 500;
+}
+
+.logout-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 17px;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+
+.logout-btn:hover {
+  color: var(--color-danger);
+  background: var(--color-danger-bg);
 }
 </style>

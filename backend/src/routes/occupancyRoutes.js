@@ -4,6 +4,9 @@ const router = express.Router();
 const occupancyController =
     require('../controllers/occupancyController');
 
+router.get('/latest',
+    occupancyController.getLatestOccupancy);   
+
 router.get('/',
     occupancyController.getLogs);
 

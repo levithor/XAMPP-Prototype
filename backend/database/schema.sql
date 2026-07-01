@@ -7,7 +7,7 @@ CREATE TABLE admins (
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     username VARCHAR(100) NOT NULL,
-    profile_image_url VARCHAR(255),
+    profile_image_url VARCHAR(500),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_login DATETIME NULL
 );

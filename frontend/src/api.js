@@ -1,79 +1,94 @@
-export async function fetchLatestOccupancy() {
-  const res = await fetch('/api/occupancy/latest')
-  if (!res.ok) throw new Error(`fetchLatestOccupancy: ${res.status}`)
+import { getToken } from './auth.js'
+
+async function apiFetch(path, options = {}) {
+  const token = getToken()
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers || {}),
+  }
+  const res = await fetch(path, { ...options, headers })
+  if (!res.ok) throw new Error(`${options.method || 'GET'} ${path}: ${res.status}`)
   return res.json()
 }
 
+
+export async function loginAdmin(email, password) {
+  const res = await fetch('/api/admins/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  })
+  if (res.status === 401) throw new Error('invalid email or password.')
+  if (!res.ok) throw new Error('server error. please try again.')
+  return res.json() // { token, admin }
+}
+
+export async function registerAdmin({ username, email, password }) {
+  const res = await fetch('/api/admins', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, email, password }),
+  })
+  if (res.status === 409) throw new Error('an account with that email already exists.')
+  if (!res.ok) throw new Error('registration failed. please try again.')
+  return res.json() // { admin_id }
+}
+
+
+export async function fetchLatestOccupancy() {
+  return apiFetch('/api/occupancy/latest')
+}
+
+
 export async function fetchHourlyTrend() {
-  const res = await fetch('/api/analytics/hourly-trend')
-  if (!res.ok) throw new Error(`fetchHourlyTrend: ${res.status}`)
-  return res.json()
+  return apiFetch('/api/analytics/hourly-trend')
 }
 
 export async function fetchWeeklyHeatmap() {
-  const res = await fetch('/api/analytics/weekly-heatmap')
-  if (!res.ok) throw new Error(`fetchWeeklyHeatmap: ${res.status}`)
-  return res.json()
+  return apiFetch('/api/analytics/weekly-heatmap')
 }
 
 export async function fetchRoomUtilization() {
-  const res = await fetch('/api/analytics/room-utilization')
-  if (!res.ok) throw new Error(`fetchRoomUtilization: ${res.status}`)
-  return res.json()
+  return apiFetch('/api/analytics/room-utilization')
 }
 
+
 export async function fetchRooms() {
-  const res = await fetch('/api/rooms')
-  if (!res.ok) throw new Error(`fetchRooms: ${res.status}`)
-  return res.json()
+  return apiFetch('/api/rooms')
 }
 
 export async function addRoom(data) {
-  const res = await fetch('/api/rooms', {
+  return apiFetch('/api/rooms', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
+    body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error(`addRoom: ${res.status}`)
-  return res.json()
 }
 
 export async function updateRoom(roomId, data) {
-  const res = await fetch(`/api/rooms/${roomId}`, {
+  return apiFetch(`/api/rooms/${roomId}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
+    body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error(`updateRoom: ${res.status}`)
-  return res.json()
 }
 
 export async function deleteRoom(roomId) {
-  const res = await fetch(`/api/rooms/${roomId}`, { method: 'DELETE' })
-  if (!res.ok) throw new Error(`deleteRoom: ${res.status}`)
-  return res.json()
+  return apiFetch(`/api/rooms/${roomId}`, { method: 'DELETE' })
 }
 
+
 export async function fetchAlerts() {
-  const res = await fetch('/api/alerts')
-  if (!res.ok) throw new Error(`fetchAlerts: ${res.status}`)
-  return res.json()
+  return apiFetch('/api/alerts')
 }
 
 export async function acknowledgeAlert(id) {
-  const res = await fetch(`/api/alerts/${id}/resolve`, { method: 'PATCH' })
-  if (!res.ok) throw new Error(`acknowledgeAlert: ${res.status}`)
-  return res.json()
+  return apiFetch(`/api/alerts/${id}/resolve`, { method: 'PATCH' })
 }
 
 export async function unacknowledgeAlert(id) {
-  const res = await fetch(`/api/alerts/${id}/unresolve`, { method: 'PATCH' })
-  if (!res.ok) throw new Error(`unacknowledgeAlert: ${res.status}`)
-  return res.json()
+  return apiFetch(`/api/alerts/${id}/unresolve`, { method: 'PATCH' })
 }
 
 export async function deleteAlert(id) {
-  const res = await fetch(`/api/alerts/${id}`, { method: 'DELETE' })
-  if (!res.ok) throw new Error(`deleteAlert: ${res.status}`)
-  return res.json()
+  return apiFetch(`/api/alerts/${id}`, { method: 'DELETE' })
 }
