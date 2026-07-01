@@ -23,6 +23,11 @@ const alertRoutes =
 const adminRoutes =
     require('./routes/adminRoutes');
 
+const imageRoutes =
+require("./routes/imageRoutes");
+
+app.use("/api/images", imageRoutes);
+
 app.use('/api/rooms', roomRoutes);
 app.use('/api/cameras', cameraRoutes);
 app.use('/api/occupancy', occupancyRoutes);
