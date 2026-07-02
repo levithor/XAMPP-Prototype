@@ -12,6 +12,7 @@ async function apiFetch(path, options = {}) {
   return res.json()
 }
 
+// ── Auth ──────────────────────────────────────────────────────────────────────
 
 export async function loginAdmin(email, password) {
   const res = await fetch('/api/admins/login', {
@@ -21,7 +22,7 @@ export async function loginAdmin(email, password) {
   })
   if (res.status === 401) throw new Error('invalid email or password.')
   if (!res.ok) throw new Error('server error. please try again.')
-  return res.json() // { token, admin }
+  return res.json()
 }
 
 export async function registerAdmin({ username, email, password }) {
@@ -32,27 +33,30 @@ export async function registerAdmin({ username, email, password }) {
   })
   if (res.status === 409) throw new Error('an account with that email already exists.')
   if (!res.ok) throw new Error('registration failed. please try again.')
-  return res.json() // { admin_id }
+  return res.json()
 }
 
+// ── Occupancy ─────────────────────────────────────────────────────────────────
 
 export async function fetchLatestOccupancy() {
   return apiFetch('/api/occupancy/latest')
 }
 
+// ── Analytics — all accept an optional query string ───────────────────────────
 
-export async function fetchHourlyTrend() {
-  return apiFetch('/api/analytics/hourly-trend')
+export async function fetchHourlyTrend(qs = '') {
+  return apiFetch(`/api/analytics/hourly-trend${qs ? '?' + qs : ''}`)
 }
 
-export async function fetchWeeklyHeatmap() {
-  return apiFetch('/api/analytics/weekly-heatmap')
+export async function fetchWeeklyHeatmap(qs = '') {
+  return apiFetch(`/api/analytics/weekly-heatmap${qs ? '?' + qs : ''}`)
 }
 
-export async function fetchRoomUtilization() {
-  return apiFetch('/api/analytics/room-utilization')
+export async function fetchRoomUtilization(qs = '') {
+  return apiFetch(`/api/analytics/room-utilization${qs ? '?' + qs : ''}`)
 }
 
+// ── Rooms ─────────────────────────────────────────────────────────────────────
 
 export async function fetchRooms() {
   return apiFetch('/api/rooms')
@@ -76,6 +80,7 @@ export async function deleteRoom(roomId) {
   return apiFetch(`/api/rooms/${roomId}`, { method: 'DELETE' })
 }
 
+// ── Alerts ────────────────────────────────────────────────────────────────────
 
 export async function fetchAlerts() {
   return apiFetch('/api/alerts')
