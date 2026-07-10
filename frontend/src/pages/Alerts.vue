@@ -197,12 +197,14 @@ const overcrowdingCount   = computed(() => alerts.value.filter(a => a.alert_type
 const unusualCount        = computed(() => alerts.value.filter(a => a.alert_type === 'unusual_activity').length)
 
 const breakdown = computed(() => {
-  const total = alerts.value.length || 1
-  const systemCount = alerts.value.filter(a => a.alert_type === 'system').length
+  const activeOvercrowding = activeAlerts.value.filter(a => a.alert_type === 'overcrowding').length
+  const activeUnusual      = activeAlerts.value.filter(a => a.alert_type === 'unusual_activity').length
+  const activeSystem       = activeAlerts.value.filter(a => a.alert_type === 'system').length
+  const total = activeAlerts.value.length || 1
   return [
-    { label: 'overcrowding',     count: overcrowdingCount.value, color: 'var(--color-danger)',  pct: Math.round(overcrowdingCount.value / total * 100) },
-    { label: 'unusual activity', count: unusualCount.value,      color: 'var(--color-warning)', pct: Math.round(unusualCount.value / total * 100) },
-    { label: 'system',           count: systemCount,             color: 'var(--color-accent)',  pct: Math.round(systemCount / total * 100) },
+    { label: 'overcrowding',     count: activeOvercrowding, color: 'var(--color-danger)',  pct: Math.round(activeOvercrowding / total * 100) },
+    { label: 'unusual activity', count: activeUnusual,      color: 'var(--color-warning)', pct: Math.round(activeUnusual / total * 100) },
+    { label: 'system',           count: activeSystem,       color: 'var(--color-accent)',  pct: Math.round(activeSystem / total * 100) },
   ]
 })
 

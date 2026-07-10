@@ -116,7 +116,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { fetchLatestOccupancy } from '../api.js'
+import { fetchLatestOccupancy, fetchAlerts } from '../api.js'
 import { usePolling } from '../other/usePolling.js'
 
 const datetime = ref('')
@@ -140,6 +140,7 @@ onUnmounted(() => clearInterval(clockTimer))
 
 const rooms = ref([])
 const apiOnline = ref(true)
+const activeAlertCount = ref(0)
 
 const statusText = computed(() =>
   apiOnline.value
@@ -151,7 +152,7 @@ const stats = computed(() => ({
   totalRooms:    rooms.value.length,
   occupiedRooms: rooms.value.filter(r => (r.occupancy_count ?? 0) > 0).length,
   totalOccupants: rooms.value.reduce((s, r) => s + (r.occupancy_count ?? 0), 0),
-  activeAlerts:  rooms.value.filter(r => (r.occupancy_count ?? 0) >= (r.capacity ?? 40)).length,
+  activeAlerts:  activeAlertCount.value,
 }))
 
 async function refresh() {
@@ -161,6 +162,10 @@ async function refresh() {
   } catch {
     apiOnline.value = false
   }
+  try {
+    const alerts = await fetchAlerts()
+    activeAlertCount.value = alerts.filter(a => !Boolean(a.is_resolved)).length
+  } catch {}
 }
 
 usePolling(refresh, 5000)

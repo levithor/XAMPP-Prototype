@@ -31,6 +31,28 @@ exports.createAlert = async (req, res) => {
             message
         } = req.body;
 
+        // Don't create a new alert if an unresolved one already exists
+        // for this room + type — avoids duplicate spam from repeated
+        // detections of the same ongoing condition.
+        const [existing] = await db.query(
+            `
+            SELECT alert_id
+            FROM alerts
+            WHERE room_id = ?
+              AND alert_type = ?
+              AND is_resolved = FALSE
+            LIMIT 1
+            `,
+            [room_id, alert_type]
+        );
+
+        if (existing.length > 0) {
+            return res.status(200).json({
+                alert_id: existing[0].alert_id,
+                message: 'Active alert already exists for this room/type'
+            });
+        }
+
         const [result] = await db.query(
             `
             INSERT INTO alerts

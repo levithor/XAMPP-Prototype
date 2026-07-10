@@ -23,7 +23,6 @@
       <div class="sidebar-section-label">manage</div>
       <a class="nav-item" href="#">
         <i class="ti ti-camera" />cameras
-        <span class="nav-badge">2</span>
       </a>
       <a class="nav-item" href="#"><i class="ti ti-user" />admin</a>
       <a class="nav-item" href="#"><i class="ti ti-settings" />settings</a>
@@ -61,7 +60,7 @@ const initials = computed(() => {
 async function refreshBadge() {
   try {
     const alerts = await fetchAlerts()
-    alertCount.value = alerts.filter(a => !a.acknowledged).length
+alertCount.value = alerts.filter(a => !Boolean(a.is_resolved)).length
   } catch {}
 }
 

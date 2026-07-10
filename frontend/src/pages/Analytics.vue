@@ -8,7 +8,6 @@
       </div>
       <div class="topbar-filters">
 
-        <!-- Room picker pill -->
         <div class="filter-pill room-pill" @click.stop="roomPickerOpen = !roomPickerOpen">
           <i class="ti ti-door" />
           {{ selectedRoomLabel }}
@@ -94,7 +93,6 @@
 
     <div class="content">
 
-      <!-- STAT CARDS -->
       <div class="stat-grid">
         <div class="stat-card">
           <div class="stat-label">{{ selectedRoomId ? 'room' : 'total rooms monitored' }}</div>
@@ -124,7 +122,6 @@
 
       <div class="analytics-grid">
 
-        <!-- HOURLY TREND CHART -->
         <div class="panel">
           <div class="panel-header">
             <span class="section-title">hourly occupancy trend</span>
@@ -170,7 +167,6 @@
           </svg>
         </div>
 
-        <!-- ALERTS PANEL -->
         <div class="panel">
           <div class="panel-header">
             <span class="section-title">{{ isToday ? 'live alerts' : 'alerts that day' }}</span>
@@ -195,7 +191,6 @@
 
       <div class="analytics-grid" style="grid-template-columns: 0.85fr 1fr;">
 
-        <!-- ROOM UTILIZATION TABLE -->
         <div class="panel">
           <div class="panel-header">
             <span class="section-title">room utilization overview</span>
@@ -230,7 +225,6 @@
           </table>
         </div>
 
-        <!-- HEATMAP -->
         <div class="panel">
           <div class="panel-header">
             <span class="section-title">weekly peak hours heatmap</span>
@@ -263,7 +257,6 @@
       </div>
     </div>
 
-    <!-- click-outside overlays -->
     <div v-if="pickerOpen"     class="picker-overlay" @click="pickerOpen = false" />
     <div v-if="roomPickerOpen" class="picker-overlay" @click="roomPickerOpen = false" />
   </div>
@@ -273,9 +266,8 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { fetchHourlyTrend, fetchWeeklyHeatmap, fetchRoomUtilization, fetchRooms } from '../api.js'
 
-// ── Room selection ────────────────────────────────────────────────────────────
 const rooms          = ref([])
-const selectedRoomId = ref(null)   // null = all rooms
+const selectedRoomId = ref(null)   
 const roomPickerOpen = ref(false)
 
 const selectedRoomLabel = computed(() => {
@@ -294,7 +286,6 @@ async function loadRooms() {
   try { rooms.value = await fetchRooms() } catch {}
 }
 
-// ── Date/time state ───────────────────────────────────────────────────────────
 const today      = new Date()
 const toDateStr  = d => d.toISOString().slice(0, 10)
 
@@ -319,7 +310,6 @@ const selectedLabel = computed(() => {
   return selectedDate.value
 })
 
-// ── Calendar ──────────────────────────────────────────────────────────────────
 const calYear  = ref(today.getFullYear())
 const calMonth = ref(today.getMonth())
 
@@ -365,7 +355,6 @@ const hourOptions = Array.from({ length: 24 }, (_, h) => ({
   v: h, l: `${String(h).padStart(2,'0')}:00`
 }))
 
-// ── Data fetching ─────────────────────────────────────────────────────────────
 const hourlyTrend = ref([])
 const heatmapData = ref([])
 const utilization = ref([])
@@ -401,7 +390,6 @@ onMounted(() => { loadRooms(); refresh(); timer = setInterval(() => { if (isToda
 onUnmounted(() => clearInterval(timer))
 watch(selectedDate, refresh)
 
-// ── Stats ─────────────────────────────────────────────────────────────────────
 const filteredUtilization = computed(() =>
   selectedRoomId.value
     ? utilization.value.filter(r => r.room_id === selectedRoomId.value)
@@ -427,7 +415,6 @@ const alertRooms = computed(() =>
     ((r.occupancy_count ?? 0) / (r.capacity ?? 40)) * 100 >= 85)
 )
 
-// ── Chart ─────────────────────────────────────────────────────────────────────
 const visibleHours = computed(() => {
   const hrs = []
   for (let h = hourFrom.value; h <= hourTo.value; h++) hrs.push(h)
@@ -467,7 +454,6 @@ const areaPath = computed(() => {
   return `${linePath.value} L${pts[pts.length-1].x},230 L${pts[0].x},230 Z`
 })
 
-// ── Heatmap ───────────────────────────────────────────────────────────────────
 const HEATMAP_HOURS     = [8,10,12,14,16,18,20,22]
 const heatmapHourLabels = ['8am','10am','12pm','2pm','4pm','6pm','8pm','10pm']
 const DAY_LABELS        = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
