@@ -1,3 +1,5 @@
+import cv2
+import os
 from ultralytics import YOLO
 
 class YOLODetector:
@@ -18,5 +20,10 @@ class YOLODetector:
 
         return people, results
     
-    def save_detection(self, results, filename):
-        results[0].save(filename)
+    def save_detection(self, results, output_path):
+
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+        annotated = results[0].plot()
+
+        cv2.imwrite(output_path, annotated)
