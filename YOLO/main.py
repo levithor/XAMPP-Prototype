@@ -32,16 +32,12 @@ def process_frame(frame, frame_count, detector, backend):
 
 def main():
     # source = VideoSource("input/demo.mp4", loop=True)
-    source = CameraSource("rtsp://admin:password@192.168.1.108:554/cam/realmonitor?channel=1&subtype=1")
+    source = CameraSource("rtsp://admin:Dahua01$@192.168.1.108:554/cam/realmonitor?channel=1&subtype=1")
     detector = YOLODetector()
     backend = BackendClient()
 
     last_capture = time.time()
     frame_count = 0
-
-    playback_start = time.time()
-    frame_index = 0
-    frame_delay = source.get_frame_delay()
 
     try:
 
