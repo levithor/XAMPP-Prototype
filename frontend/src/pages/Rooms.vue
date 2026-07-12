@@ -29,9 +29,16 @@
             <span class="room-badge" :class="statusFor(room).badge">{{ statusFor(room).label }}</span>
           </div>
           <div class="room-loc">capacity limit: {{ room.capacity_limit }}</div>
-          <div class="room-count">-- <span>/ {{ room.capacity_limit }} max</span></div>
+          <!-- occupancy_count comes from the merged occupancy data -->
+          <div class="room-count">
+            {{ room.occupancy_count ?? '--' }}
+            <span>/ {{ room.capacity_limit }} max</span>
+          </div>
           <div class="progress-bar">
-            <div class="progress-fill" :class="statusFor(room).fill" style="width: 0%"></div>
+            <div class="progress-fill"
+                 :class="statusFor(room).fill"
+                 :style="{ width: pct(room) + '%' }">
+            </div>
           </div>
           <div class="room-card-footer">
             <span>threshold: {{ room.occupancy_threshold }}</span>
@@ -60,12 +67,13 @@
               <th>room name</th>
               <th>capacity limit</th>
               <th>threshold</th>
+              <th>current occupancy</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="rooms.length === 0">
-              <td colspan="4" style="padding:16px 0; color:var(--color-text-muted); font-size:13px;">
+              <td colspan="5" style="padding:16px 0; color:var(--color-text-muted); font-size:13px;">
                 no rooms configured yet
               </td>
             </tr>
@@ -73,6 +81,7 @@
               <td>{{ room.room_name }}</td>
               <td class="muted">{{ room.capacity_limit }} people</td>
               <td class="muted">{{ room.occupancy_threshold }} people</td>
+              <td class="muted">{{ room.occupancy_count ?? '--' }}</td>
               <td class="row-actions">
                 <i class="ti ti-edit" title="edit" @click="openEditModal(room)" style="margin-right:10px; cursor:pointer;" />
                 <i class="ti ti-trash" title="delete" @click="confirmDelete(room)" style="cursor:pointer;" />
@@ -121,7 +130,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { fetchRooms, addRoom, updateRoom, deleteRoom } from '../api.js'
+import { fetchRooms, fetchLatestOccupancy, addRoom, updateRoom, deleteRoom } from '../api.js'
 import { usePolling } from '../other/usePolling.js'
 
 const rooms = ref([])
@@ -134,26 +143,59 @@ const form = ref({ room_name: '', capacity_limit: 40, occupancy_threshold: 35 })
 
 const filters = [
   { key: 'all',    label: 'all rooms' },
-  { key: 'active', label: 'active' },
+  { key: 'over',   label: 'over capacity' },
+  { key: 'near',   label: 'near capacity' },
+  { key: 'normal', label: 'normal' },
 ]
 
 const subtitle = computed(() =>
   `${rooms.value.length} room${rooms.value.length !== 1 ? 's' : ''} configured`
 )
 
-const filteredRooms = computed(() => rooms.value)
+const filteredRooms = computed(() => {
+  if (activeFilter.value === 'all') return rooms.value
+  return rooms.value.filter(r => statusFor(r).key === activeFilter.value)
+})
 
 function statusFor(room) {
+  const p = pct(room)
+  if (p >= 100) return { label: 'over capacity', badge: 'badge-danger', fill: 'fill-danger', key: 'over' }
+  if (p >= 85)  return { label: 'near capacity', badge: 'badge-warning', fill: 'fill-warning', key: 'near' }
   return { label: 'normal', badge: 'badge-success', fill: 'fill-success', key: 'normal' }
 }
 
 function accentFor(room) {
+  const k = statusFor(room).key
+  if (k === 'over') return 'accent-danger'
+  if (k === 'near') return 'accent-warning'
   return 'accent-success'
 }
 
+function pct(room) {
+  const cap = room.capacity_limit ?? 40
+  if (!room.occupancy_count) return 0
+  return Math.min(100, Math.round((room.occupancy_count / cap) * 100))
+}
+
 async function refresh() {
-  try { rooms.value = await fetchRooms() }
-  catch (err) { console.warn('Rooms refresh failed:', err.message) }
+  try {
+    const [roomList, occupancyList] = await Promise.all([
+      fetchRooms(),
+      fetchLatestOccupancy().catch(() => []) // if theres none then it should just show 0, or atleast i hope. come HERE if the occupancy count display is screwed up
+    ])
+
+    const occupancyMap = {}
+    occupancyList.forEach(o => {
+      occupancyMap[o.room_id] = o.occupancy_count ?? 0
+    })
+
+    rooms.value = roomList.map(r => ({
+      ...r,
+      occupancy_count: occupancyMap[r.room_id] ?? null
+    }))
+  } catch (err) {
+    console.warn('Rooms refresh failed:', err.message)
+  }
 }
 
 usePolling(refresh, 5000)

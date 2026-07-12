@@ -193,8 +193,8 @@ const filteredAlerts = computed(() => {
 
 const unacknowledgedCount = computed(() => alerts.value.filter(a => !a.is_resolved).length)
 const acknowledgedCount   = computed(() => alerts.value.filter(a => a.is_resolved).length)
-const overcrowdingCount   = computed(() => alerts.value.filter(a => a.alert_type === 'overcrowding').length)
-const unusualCount        = computed(() => alerts.value.filter(a => a.alert_type === 'unusual_activity').length)
+const overcrowdingCount = computed(() => alerts.value.filter(a => a.alert_type === 'overcrowding' && !a.is_resolved).length)
+const unusualCount      = computed(() => alerts.value.filter(a => a.alert_type === 'unusual_activity' && !a.is_resolved).length)
 
 const breakdown = computed(() => {
   const activeOvercrowding = activeAlerts.value.filter(a => a.alert_type === 'overcrowding').length

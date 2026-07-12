@@ -3,7 +3,7 @@
 
     <div class="topbar">
       <div>
-        <div class="topbar-title">{{ greeting }}, mario</div>
+        <div class="topbar-title">{{ greeting }}, {{ username }}</div>
         <div class="topbar-sub">{{ datetime }}</div>
       </div>
       <div class="topbar-status">
@@ -40,7 +40,7 @@
           <div class="stat-icon red"><i class="ti ti-alert-circle" /></div>
           <div class="stat-label">active alerts</div>
           <div class="stat-value">{{ stats.activeAlerts }}</div>
-          <router-link to="/analytics" class="stat-link" style="text-decoration:none;">
+          <router-link to="/alerts" class="stat-link" style="text-decoration:none;">
             click for more details <i class="ti ti-arrow-right" style="font-size:12px" />
           </router-link>
         </div>
@@ -56,21 +56,25 @@
         <div class="room-grid">
           <div v-for="room in rooms" :key="room.room_id" class="room-card">
             <div class="room-card-header">
-              <div class="room-name">{{ room.name }}</div>
+              <!-- occupancyController returns room_name from the JOIN -->
+              <div class="room-name">{{ room.room_name }}</div>
               <span class="room-badge" :class="statusFor(room).badge">
                 {{ statusFor(room).label }}
               </span>
             </div>
-            <div class="room-loc">{{ [room.building, room.floor].filter(Boolean).join(' | ') }}</div>
+            <div class="room-loc">capacity limit: {{ room.capacity_limit }}</div>
             <div class="room-count">
-              {{ room.occupancy_count ?? 0 }} <span>/ {{ room.capacity }} max</span>
+              {{ room.occupancy_count ?? 0 }}
+              <span>/ {{ room.capacity_limit }} max</span>
             </div>
             <div class="progress-bar">
-              <div class="progress-fill" :class="statusFor(room).fill"
-                   :style="{ width: pct(room) + '%' }"></div>
+              <div class="progress-fill"
+                   :class="statusFor(room).fill"
+                   :style="{ width: pct(room) + '%' }">
+              </div>
             </div>
             <div class="room-meta">
-              {{ room.camera_id || 'no camera' }} &nbsp;·&nbsp; {{ timeAgo(room.timestamp) }}
+              {{ room.camera_id || 'no camera' }} &nbsp;·&nbsp; {{ timeAgo(room.recorded_at) }}
             </div>
           </div>
         </div>
@@ -103,7 +107,7 @@
             <div class="cam-icon"><i class="ti ti-camera" /></div>
             <div>
               <div class="cam-name">{{ room.camera_id || 'no camera' }}</div>
-              <div class="cam-loc">{{ room.name }} | {{ room.floor }}</div>
+              <div class="cam-loc">{{ room.room_name }}</div>
             </div>
             <span class="cam-live">live</span>
           </div>
@@ -118,6 +122,12 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { fetchLatestOccupancy, fetchAlerts } from '../api.js'
 import { usePolling } from '../other/usePolling.js'
+import { getUser } from '../auth.js'
+
+const storedUser = getUser()
+const username = computed(() =>
+  storedUser?.username || storedUser?.name || 'admin'
+)
 
 const datetime = ref('')
 const greeting = ref('good morning')
@@ -149,10 +159,10 @@ const statusText = computed(() =>
 )
 
 const stats = computed(() => ({
-  totalRooms:    rooms.value.length,
-  occupiedRooms: rooms.value.filter(r => (r.occupancy_count ?? 0) > 0).length,
+  totalRooms:     rooms.value.length,
+  occupiedRooms:  rooms.value.filter(r => (r.occupancy_count ?? 0) > 0).length,
   totalOccupants: rooms.value.reduce((s, r) => s + (r.occupancy_count ?? 0), 0),
-  activeAlerts:  activeAlertCount.value,
+  activeAlerts:   activeAlertCount.value,
 }))
 
 async function refresh() {
@@ -171,14 +181,15 @@ async function refresh() {
 usePolling(refresh, 5000)
 
 function statusFor(room) {
-  const pct = ((room.occupancy_count ?? 0) / (room.capacity ?? 40)) * 100
-  if (pct >= 100) return { label: 'over capacity', badge: 'badge-danger', fill: 'fill-danger' }
-  if (pct >= 85)  return { label: 'near capacity', badge: 'badge-warning', fill: 'fill-warning' }
+  const p = pct(room)
+  if (p >= 100) return { label: 'over capacity', badge: 'badge-danger', fill: 'fill-danger' }
+  if (p >= 85)  return { label: 'near capacity', badge: 'badge-warning', fill: 'fill-warning' }
   return { label: 'normal', badge: 'badge-success', fill: 'fill-success' }
 }
 
 function pct(room) {
-  return Math.min(100, Math.round(((room.occupancy_count ?? 0) / (room.capacity ?? 40)) * 100))
+  const cap = room.capacity_limit ?? 40
+  return Math.min(100, Math.round(((room.occupancy_count ?? 0) / cap) * 100))
 }
 
 function timeAgo(ts) {
@@ -191,7 +202,7 @@ function timeAgo(ts) {
 
 const feed = [
   { text: 'room 301 exceeded capacity — 48 of 40', time: '02:46 today', color: 'var(--color-danger)' },
-  { text: 'room 205 approaching capacity threshold',  time: '02:45 today', color: 'var(--color-warning)' },
+  { text: 'room 205 approaching capacity threshold', time: '02:45 today', color: 'var(--color-warning)' },
   { text: 'room 205 — unusual activity outside normal hours', time: '12:55 today', color: 'var(--color-warning)' },
   { text: 'room 301 returned to normal occupancy', time: '08:30 today', color: 'var(--color-success)' },
   { text: 'system started — all cameras connected', time: '07:00 today', color: 'var(--color-accent)' },

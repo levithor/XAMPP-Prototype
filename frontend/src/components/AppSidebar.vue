@@ -21,9 +21,7 @@
 
     <div class="sidebar-section">
       <div class="sidebar-section-label">manage</div>
-      <a class="nav-item" href="#">
-        <i class="ti ti-camera" />cameras
-      </a>
+      <a class="nav-item" href="#"><i class="ti ti-camera" />cameras</a>
       <a class="nav-item" href="#"><i class="ti ti-user" />admin</a>
       <a class="nav-item" href="#"><i class="ti ti-settings" />settings</a>
     </div>
@@ -31,8 +29,8 @@
     <div class="sidebar-footer">
       <div class="avatar">{{ initials }}</div>
       <div class="footer-text" style="flex:1; min-width:0;">
-        <div class="name">{{ user?.name || 'admin' }}</div>
-        <div class="role">{{ user?.role || 'facility manager' }}</div>
+        <div class="name">{{ displayName }}</div>
+        <div class="role">{{ displayRole }}</div>
       </div>
       <button class="logout-btn" title="sign out" @click="$emit('logout')">
         <i class="ti ti-logout" />
@@ -50,17 +48,29 @@ const props = defineProps({
 })
 defineEmits(['logout'])
 
-const alertCount = ref(0)
+// ── display name ──────────────────────────────
+// Handles both possible field names from the JWT/saved user:
+// { username: 'mario' } or { name: 'mario' }
+const displayName = computed(() =>
+  props.user?.username || props.user?.name || 'admin'
+)
+
+const displayRole = computed(() =>
+  props.user?.role || 'facility manager'
+)
 
 const initials = computed(() => {
-  const name = props.user?.name || ''
+  const name = displayName.value
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toLowerCase() || 'ad'
 })
+
+// ── alert badge ───────────────────────────────
+const alertCount = ref(0)
 
 async function refreshBadge() {
   try {
     const alerts = await fetchAlerts()
-alertCount.value = alerts.filter(a => !Boolean(a.is_resolved)).length
+    alertCount.value = alerts.filter(a => !Boolean(a.is_resolved)).length
   } catch {}
 }
 
