@@ -23,7 +23,6 @@ def process_frame(frame, frame_count, detector, backend):
         )
 
     response = backend.send_occupancy(
-        room_id=1,
         camera_id=1,
         people=people
     )

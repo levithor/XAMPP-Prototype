@@ -24,13 +24,13 @@ exports.getCameraById = async (req, res) => {
 
 exports.createCamera = async (req, res) => {
   try {
-    const { camera_name, ip_address, status, assigned_room_id } = req.body;
+    const { camera_name, rtsp_url, status, assigned_room_id } = req.body;
     if (!camera_name) return res.status(400).json({ message: 'camera_name is required' });
 
     const [result] = await db.query(
-      `INSERT INTO cameras (camera_name, ip_address, status, assigned_room_id)
+      `INSERT INTO cameras (camera_name, rtsp_url, status, assigned_room_id)
        VALUES (?, ?, ?, ?)`,
-      [camera_name, ip_address || null, status || 'online', assigned_room_id || null]
+      [camera_name, rtsp_url || null, status || 'online', assigned_room_id || null]
     );
     res.status(201).json({ camera_id: result.insertId });
   } catch (err) {
@@ -40,19 +40,21 @@ exports.createCamera = async (req, res) => {
 
 exports.updateCamera = async (req, res) => {
   try {
-    const { camera_name, ip_address, status, assigned_room_id } = req.body;
+    const { camera_name, rtsp_url, status, assigned_room_id } = req.body;
     if (!camera_name) return res.status(400).json({ message: 'camera_name is required' });
 
     const [result] = await db.query(
       `UPDATE cameras
-       SET camera_name = ?, ip_address = ?, status = ?, assigned_room_id = ?
+       SET camera_name = ?, rtsp_url = ?, status = ?, assigned_room_id = ?
        WHERE camera_id = ?`,
-      [camera_name, ip_address || null, status || 'online', assigned_room_id || null, req.params.id]
+      [camera_name, rtsp_url || null, status || 'online', assigned_room_id || null, req.params.id]
     );
     if (result.affectedRows === 0) return res.status(404).json({ message: 'Camera not found' });
     res.json({ message: 'updated' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+
+    res.status(500).json({error: err.message});
   }
 };
 
@@ -71,4 +73,27 @@ exports.deleteCamera = async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+};
+
+exports.assignRoom = async (req, res) => {
+
+    const { assigned_room_id } = req.body;
+
+    const [result] = await db.query(
+        `UPDATE cameras
+         SET assigned_room_id = ?
+         WHERE camera_id = ?`,
+        [assigned_room_id, req.params.id]
+    );
+
+    if (result.affectedRows === 0) {
+        return res.status(404).json({
+            message: "Camera not found."
+        });
+    }
+
+    res.json({
+        message: "Room assigned."
+    });
+
 };
