@@ -31,9 +31,6 @@ exports.createAlert = async (req, res) => {
             message
         } = req.body;
 
-        // Don't create a new alert if an unresolved one already exists
-        // for this room + type — avoids duplicate spam from repeated
-        // detections of the same ongoing condition.
         const [existing] = await db.query(
             `
             SELECT alert_id

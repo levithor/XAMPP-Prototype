@@ -40,7 +40,6 @@ exports.login = async (req, res) => {
             });
         }
 
-        // Update last_login timestamp
         await db.query(
             `UPDATE admins SET last_login = NOW() WHERE admin_id = ?`,
             [admin.admin_id]
@@ -165,7 +164,7 @@ exports.createAdmin = async (req, res) => {
         });
 
     } catch (err) {
-        // Duplicate email
+        // dupe mail catch
         if (err.code === 'ER_DUP_ENTRY') {
             return res.status(409).json({
                 error: 'an admin with that email already exists'

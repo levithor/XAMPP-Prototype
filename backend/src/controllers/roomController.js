@@ -1,6 +1,6 @@
 const db = require('../config/db');
+const { checkAndCreateAlerts } = require('../services/alertService');
 
-// GET all rooms
 exports.getRooms = async (req, res) => {
     try {
         const [rows] = await db.query('SELECT * FROM rooms');
@@ -10,7 +10,6 @@ exports.getRooms = async (req, res) => {
     }
 };
 
-// GET single room by ID
 exports.getRoomById = async (req, res) => {
     try {
         const [rows] = await db.query(
@@ -26,7 +25,6 @@ exports.getRoomById = async (req, res) => {
     }
 };
 
-// POST create a new room
 exports.createRoom = async (req, res) => {
     try {
         const { room_name, capacity_limit, occupancy_threshold } = req.body;
@@ -47,10 +45,10 @@ exports.createRoom = async (req, res) => {
     }
 };
 
-// PUT update a room
 exports.updateRoom = async (req, res) => {
     try {
         const { room_name, capacity_limit, occupancy_threshold } = req.body;
+        const { room_id } = req.params;
 
         const [result] = await db.query(
             `UPDATE rooms SET
@@ -58,7 +56,7 @@ exports.updateRoom = async (req, res) => {
                 capacity_limit      = COALESCE(?, capacity_limit),
                 occupancy_threshold = COALESCE(?, occupancy_threshold)
              WHERE room_id = ?`,
-            [room_name, capacity_limit, occupancy_threshold, req.params.room_id]
+            [room_name, capacity_limit, occupancy_threshold, room_id]
         );
 
         if (result.affectedRows === 0) {
@@ -66,12 +64,25 @@ exports.updateRoom = async (req, res) => {
         }
 
         res.json({ message: 'Room updated' });
+
+        const [latest] = await db.query(
+            `SELECT occupancy_count
+             FROM occupancy_logs
+             WHERE room_id = ?
+             ORDER BY recorded_at DESC
+             LIMIT 1`,
+            [room_id]
+        );
+
+        if (latest.length > 0) {
+            await checkAndCreateAlerts(room_id, latest[0].occupancy_count);
+        }
+
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 };
 
-// DELETE a room — removes all dependent records first, then the room
 exports.deleteRoom = async (req, res) => {
     const { room_id } = req.params;
     const conn = await db.getConnection();
@@ -79,8 +90,7 @@ exports.deleteRoom = async (req, res) => {
     try {
         await conn.beginTransaction();
 
-        // Remove all records that reference this room
-        await conn.query('DELETE FROM alerts        WHERE room_id = ?', [room_id]);
+        await conn.query('DELETE FROM alerts         WHERE room_id = ?', [room_id]);
         await conn.query('DELETE FROM occupancy_logs WHERE room_id = ?', [room_id]);
         await conn.query(
             'UPDATE cameras SET assigned_room_id = NULL WHERE assigned_room_id = ?',
