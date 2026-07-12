@@ -12,7 +12,7 @@ async function apiFetch(path, options = {}) {
   return res.json()
 }
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
+// ── authentication stuff ──
 
 export async function loginAdmin(email, password) {
   const res = await fetch('/api/admins/login', {
@@ -36,13 +36,13 @@ export async function registerAdmin({ username, email, password }) {
   return res.json()
 }
 
-// ── Occupancy ─────────────────────────────────────────────────────────────────
+// ── occupancy stuff ──
 
 export async function fetchLatestOccupancy() {
   return apiFetch('/api/occupancy/latest')
 }
 
-// ── Analytics — all accept an optional query string ───────────────────────────
+// ── analytics stuff ──
 
 export async function fetchHourlyTrend(qs = '') {
   return apiFetch(`/api/analytics/hourly-trend${qs ? '?' + qs : ''}`)
@@ -56,7 +56,7 @@ export async function fetchRoomUtilization(qs = '') {
   return apiFetch(`/api/analytics/room-utilization${qs ? '?' + qs : ''}`)
 }
 
-// ── Rooms ─────────────────────────────────────────────────────────────────────
+// ── rooms stuff ──
 
 export async function fetchRooms() {
   return apiFetch('/api/rooms')
@@ -80,7 +80,7 @@ export async function deleteRoom(roomId) {
   return apiFetch(`/api/rooms/${roomId}`, { method: 'DELETE' })
 }
 
-// ── Alerts ────────────────────────────────────────────────────────────────────
+// ── alerts stuff ───
 
 export async function fetchAlerts() {
   return apiFetch('/api/alerts')
@@ -96,4 +96,28 @@ export async function unacknowledgeAlert(id) {
 
 export async function deleteAlert(id) {
   return apiFetch(`/api/alerts/${id}`, { method: 'DELETE' })
+}
+
+// ── cams stuff ──
+
+export async function fetchCameras() {
+  return apiFetch('/api/cameras')
+}
+
+export async function addCamera(data) {
+  return apiFetch('/api/cameras', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateCamera(cameraId, data) {
+  return apiFetch(`/api/cameras/${cameraId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteCamera(cameraId) {
+  return apiFetch(`/api/cameras/${cameraId}`, { method: 'DELETE' })
 }

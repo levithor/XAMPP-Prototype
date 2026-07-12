@@ -21,7 +21,7 @@
 
     <div class="sidebar-section">
       <div class="sidebar-section-label">manage</div>
-      <a class="nav-item" href="#"><i class="ti ti-camera" />cameras</a>
+      <router-link class="nav-item" to="/cameras"><i class="ti ti-camera" />cameras</router-link>
       <a class="nav-item" href="#"><i class="ti ti-user" />admin</a>
       <a class="nav-item" href="#"><i class="ti ti-settings" />settings</a>
     </div>
@@ -48,9 +48,6 @@ const props = defineProps({
 })
 defineEmits(['logout'])
 
-// ── display name ──────────────────────────────
-// Handles both possible field names from the JWT/saved user:
-// { username: 'mario' } or { name: 'mario' }
 const displayName = computed(() =>
   props.user?.username || props.user?.name || 'admin'
 )
@@ -64,7 +61,6 @@ const initials = computed(() => {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toLowerCase() || 'ad'
 })
 
-// ── alert badge ───────────────────────────────
 const alertCount = ref(0)
 
 async function refreshBadge() {

@@ -3,6 +3,7 @@ import Home      from './pages/Home.vue'
 import Analytics from './pages/Analytics.vue'
 import Rooms     from './pages/Rooms.vue'
 import Alerts    from './pages/Alerts.vue'
+import Cameras   from './pages/Cameras.vue'
 import Login     from './pages/Login.vue'
 import Register  from './pages/Register.vue'
 import { isAuthenticated } from './auth.js'
@@ -14,6 +15,7 @@ const routes = [
   { path: '/analytics', component: Analytics },
   { path: '/rooms',     component: Rooms },
   { path: '/alerts',    component: Alerts },
+  { path: '/cameras',   component: Cameras },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 
