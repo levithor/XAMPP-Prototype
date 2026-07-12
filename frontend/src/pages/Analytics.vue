@@ -174,16 +174,12 @@
           <div v-if="alertRooms.length === 0" class="alert-meta" style="padding:8px 0;">
             no active alerts
           </div>
-          <div v-for="room in alertRooms" :key="room.room_id"
-               class="alert-card" :class="room.occupancy_count >= room.capacity ? 'danger' : 'warning'">
-            <div class="alert-dot" :class="room.occupancy_count >= room.capacity ? 'danger' : 'warning'"></div>
+          <div v-for="alert in alertRooms" :key="alert.alert_id"
+               class="alert-card" :class="alert.alert_type === 'overcrowding' ? 'danger' : 'warning'">
+            <div class="alert-dot" :class="alert.alert_type === 'overcrowding' ? 'danger' : 'warning'"></div>
             <div>
-              <div class="alert-title">
-                {{ room.name }} {{ room.occupancy_count >= room.capacity ? 'overcrowded' : 'near capacity' }}
-              </div>
-              <div class="alert-meta">
-                {{ formatTime(room.last_updated) }} | {{ room.occupancy_count }}/{{ room.capacity }} capacity
-              </div>
+              <div class="alert-title">{{ alert.message }}</div>
+              <div class="alert-meta">{{ formatTime(alert.created_at) }}</div>
             </div>
           </div>
         </div>
@@ -264,7 +260,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { fetchHourlyTrend, fetchWeeklyHeatmap, fetchRoomUtilization, fetchRooms } from '../api.js'
+import { fetchHourlyTrend, fetchWeeklyHeatmap, fetchRoomUtilization, fetchRooms, fetchAlerts } from '../api.js'
 
 const rooms          = ref([])
 const selectedRoomId = ref(null)   
@@ -359,6 +355,7 @@ const hourlyTrend = ref([])
 const heatmapData = ref([])
 const utilization = ref([])
 const loading     = ref(false)
+const alerts      = ref([])
 
 async function refresh() {
   loading.value = true
@@ -370,14 +367,16 @@ async function refresh() {
     })
     if (selectedRoomId.value) p.set('room_id', selectedRoomId.value)
 
-    const [trend, heatmap, util] = await Promise.all([
+    const [trend, heatmap, util, alertList] = await Promise.all([
       fetchHourlyTrend(p.toString()).catch(() => []),
       fetchWeeklyHeatmap(p.toString()).catch(() => []),
       fetchRoomUtilization(p.toString()).catch(() => []),
+      fetchAlerts().catch(() => []),
     ])
     hourlyTrend.value = trend
     heatmapData.value = heatmap
     utilization.value = util
+    alerts.value      = alertList
   } catch (err) {
     console.warn('Analytics refresh failed:', err.message)
   } finally {
@@ -411,8 +410,9 @@ const stats = computed(() => {
 })
 
 const alertRooms = computed(() =>
-  filteredUtilization.value.filter(r =>
-    ((r.occupancy_count ?? 0) / (r.capacity ?? 40)) * 100 >= 85)
+  alerts.value
+    .filter(a => !a.is_resolved)
+    .filter(a => !selectedRoomId.value || a.room_id === selectedRoomId.value)
 )
 
 const visibleHours = computed(() => {
@@ -512,4 +512,3 @@ function formatTime(ts) {
 <style>
 @import '../assets/analytics.css';
 </style>
-
