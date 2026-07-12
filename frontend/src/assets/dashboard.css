@@ -31,7 +31,6 @@ body {
   font-size: 14px;
 }
 
-/* SIDEBAR */
 .sidebar {
   width: var(--sidebar-width);
   background: var(--color-surface);
@@ -139,7 +138,6 @@ body {
 .footer-text .name { font-size: 13px; font-weight: 500; }
 .footer-text .role { font-size: 11px; color: var(--color-text-muted); }
 
-/* MAIN */
 .main {
   flex: 1;
   display: flex;
@@ -191,7 +189,6 @@ body {
   gap: 20px;
 }
 
-/* STAT CARDS */
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -236,7 +233,6 @@ body {
   margin-top: 6px;
 }
 
-/* LIVE ROOM STATUS */
 .section-header {
   display: flex;
   align-items: center;
@@ -319,7 +315,6 @@ body {
 
 .room-meta { font-size: 11px; color: var(--color-text-muted); }
 
-/* BOTTOM ROW */
 .bottom-grid {
   display: grid;
   grid-template-columns: 1fr 0.6fr;
@@ -340,7 +335,6 @@ body {
   margin-bottom: 14px;
 }
 
-/* ACTIVITY FEED */
 .feed-item {
   display: flex;
   align-items: flex-start;
@@ -362,7 +356,6 @@ body {
 .feed-text { font-size: 13px; color: var(--color-text-primary); line-height: 1.4; }
 .feed-time { font-size: 11px; color: var(--color-text-muted); margin-top: 2px; }
 
-/* CAMERA STATUS */
 .camera-item {
   display: flex;
   align-items: center;
@@ -400,3 +393,51 @@ body {
   padding: 3px 9px;
   border-radius: 20px;
 }
+/* DARK MODE YESSSSS IM FINALLY NOT BLIND WHEN I LOOK AT THE PAGE HOLY BAJEEZUS */
+
+html.dark {
+  --color-bg:              #0f0f0f;
+  --color-surface:         #1a1a1a;
+  --color-border:          rgba(255,255,255,0.08);
+  --color-text-primary:    #f0f0ee;
+  --color-text-secondary:  #a0a0a0;
+  --color-text-muted:      #666666;
+  --color-accent:          #4d8ef0;
+  --color-danger:          #f87171;
+  --color-warning:         #fbbf24;
+  --color-success:         #4ade80;
+  --color-info-bg:         #1e2d4a;
+  --color-danger-bg:       #2d1a1a;
+  --color-warning-bg:      #2d2410;
+  --color-success-bg:      #162d1e;
+}
+
+
+html.dark body           { background: var(--color-bg); }
+html.dark .logo-icon     { background: #f0f0ee; color: #1a1a1a; }
+html.dark .avatar        { background: #f0f0ee; color: #1a1a1a; }
+html.dark .nav-item:hover         { background: #252525; }
+html.dark .nav-item.active        { background: #252525; }
+html.dark .nav-item.router-link-active { background: #252525; }
+html.dark .progress-bar  { background: #2a2a2a; }
+html.dark .camera-item   { background: #222222; }
+html.dark .cam-icon      { background: #2e2e2e; }
+
+
+html.dark .add-room-card          { border-color: rgba(255,255,255,0.08); color: var(--color-text-muted); }
+html.dark .add-room-card:hover    { background: #222222; }
+html.dark .room-card.accent-danger  { border-left-color: var(--color-danger); }
+html.dark .room-card.accent-warning { border-left-color: var(--color-warning); }
+html.dark .room-card.accent-success { border-left-color: var(--color-success); }
+html.dark .filter-chip            { background: #222222; border-color: rgba(255,255,255,0.08); color: var(--color-text-secondary); }
+html.dark .filter-chip.active     { background: #2e2e2e; color: var(--color-text-primary); }
+html.dark .rooms-table th         { border-color: rgba(255,255,255,0.08); }
+html.dark .rooms-table td         { border-color: rgba(255,255,255,0.06); }
+html.dark .rooms-table tr:hover td { background: #222222; }
+
+
+html.dark .modal-box     { background: #1a1a1a; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+html.dark .modal-field input,
+html.dark .modal-select  { background: #222222; color: var(--color-text-primary); border-color: rgba(255,255,255,0.1); }
+html.dark .btn-cancel    { background: #222222; color: var(--color-text-primary); border-color: rgba(255,255,255,0.1); }
+html.dark .modal-overlay { background: rgba(0,0,0,0.6); }

@@ -32,7 +32,10 @@
         <div class="name">{{ displayName }}</div>
         <div class="role">{{ displayRole }}</div>
       </div>
-      <button class="logout-btn" title="sign out" @click="$emit('logout')">
+      <button class="icon-btn" :title="isDark ? 'light mode' : 'dark mode'" @click="toggleTheme">
+        <i :class="isDark ? 'ti ti-sun' : 'ti ti-moon'" />
+      </button>
+      <button class="icon-btn logout-btn" title="sign out" @click="$emit('logout')">
         <i class="ti ti-logout" />
       </button>
     </div>
@@ -42,11 +45,15 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { fetchAlerts } from '../api.js'
+import { useTheme } from '../theme.js'
 
 const props = defineProps({
   user: { type: Object, default: null }
 })
 defineEmits(['logout'])
+
+const { isDark, toggleTheme } = useTheme()
+
 
 const displayName = computed(() =>
   props.user?.username || props.user?.name || 'admin'
@@ -60,6 +67,7 @@ const initials = computed(() => {
   const name = displayName.value
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toLowerCase() || 'ad'
 })
+
 
 const alertCount = ref(0)
 
@@ -82,7 +90,11 @@ onUnmounted(() => clearInterval(timer))
   font-weight: 500;
 }
 
-.logout-btn {
+html.dark .nav-item.router-link-active {
+  background: #252525;
+}
+
+.icon-btn {
   background: none;
   border: none;
   cursor: pointer;
@@ -94,6 +106,11 @@ onUnmounted(() => clearInterval(timer))
   border-radius: 6px;
   flex-shrink: 0;
   transition: color 0.15s, background 0.15s;
+}
+
+.icon-btn:hover {
+  color: var(--color-text-primary);
+  background: var(--color-border);
 }
 
 .logout-btn:hover {
