@@ -16,12 +16,12 @@ VALUES
 ('Meeting Room B', 15, 12);
 
 INSERT INTO cameras
-(camera_name, ip_address, status, assigned_room_id, last_communication)
+(camera_name, rtsp_url, status, assigned_room_id, last_communication)
 VALUES
-('Cam-LabA', '192.168.1.101', 'ONLINE', 1, NOW()),
-('Cam-Lecture101', '192.168.1.102', 'ONLINE', 2, NOW()),
-('Cam-Library', '192.168.1.103', 'ONLINE', 3, NOW()),
-('Cam-EngLab', '192.168.1.104', 'ONLINE', 4, NOW()),
+('Cam-LabA', 'rtsp://192.168.1.101/stream', 'ONLINE', 1, NOW()),
+('Cam-Lecture101', 'rtsp://192.168.1.102/stream', 'ONLINE', 2, NOW()),
+('Cam-Library', 'rtsp://192.168.1.103/stream', 'ONLINE', 3, NOW()),
+('Cam-EngLab', 'rtsp://192.168.1.104/stream', 'ONLINE', 4, NOW()),
 ('Cam-MeetingB', '192.168.1.105', 'OFFLINE', 5, DATE_SUB(NOW(), INTERVAL 2 HOUR));
 
 INSERT INTO admins

@@ -23,7 +23,7 @@ CREATE TABLE rooms (
 CREATE TABLE cameras (
     camera_id INT AUTO_INCREMENT PRIMARY KEY,
     camera_name VARCHAR(100) NOT NULL,
-    ip_address VARCHAR(50),
+    rtsp_url VARCHAR(500),
     status VARCHAR(20),
     assigned_room_id INT,
     last_communication DATETIME,
@@ -31,12 +31,13 @@ CREATE TABLE cameras (
 
     FOREIGN KEY (assigned_room_id)
         REFERENCES rooms(room_id)
+        ON DELETE SET NULL
 );
 
 CREATE TABLE occupancy_logs (
     log_id INT AUTO_INCREMENT PRIMARY KEY,
     room_id INT NOT NULL,
-    camera_id INT,
+    camera_id INT NOT NULL,
     occupancy_count INT NOT NULL,
     recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 
@@ -50,6 +51,7 @@ CREATE TABLE occupancy_logs (
 CREATE TABLE alerts (
     alert_id INT AUTO_INCREMENT PRIMARY KEY,
     room_id INT NOT NULL,
+    log_id INT,
     alert_type VARCHAR(50),
     message TEXT,
     is_resolved BOOLEAN DEFAULT FALSE,
