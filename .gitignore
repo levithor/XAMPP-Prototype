@@ -30,7 +30,8 @@ out/
 .nuxt
 
 # dotenv environment variable files
-backend/.env
+backend.env
+frontend.env
 .env.local
 .env.*.local
 
