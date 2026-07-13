@@ -17,13 +17,7 @@
         <i class="ti ti-bell" />alerts
         <span v-if="alertCount > 0" class="nav-badge">{{ alertCount }}</span>
       </router-link>
-    </div>
-
-    <div class="sidebar-section">
-      <div class="sidebar-section-label">manage</div>
       <router-link class="nav-item" to="/cameras"><i class="ti ti-camera" />cameras</router-link>
-      <a class="nav-item" href="#"><i class="ti ti-user" />admin</a>
-      <a class="nav-item" href="#"><i class="ti ti-settings" />settings</a>
     </div>
 
     <div class="sidebar-footer">
