@@ -183,7 +183,7 @@ const modalError   = ref('')
 
 const form = ref({
   camera_name:      '',
-  ip_address:       '',
+  rtsp_url:       '',
   status:           'online',
   assigned_room_id: null,
 })
@@ -254,7 +254,7 @@ usePolling(refresh, 10000)
 
 function openAddModal() {
   editingCamera.value = null
-  form.value = { camera_name: '', ip_address: '', status: 'online', assigned_room_id: null }
+  form.value = { camera_name: '', rtsp_url: '', status: 'online', assigned_room_id: null }
   modalError.value = ''
   showModal.value = true
 }
@@ -263,7 +263,7 @@ function openEditModal(cam) {
   editingCamera.value = cam
   form.value = {
     camera_name:      cam.camera_name      || '',
-    ip_address:       cam.ip_address       || '',
+    rtsp_url:       cam.rtsp_url       || '',
     status:           cam.status           || 'online',
     assigned_room_id: cam.assigned_room_id ?? null,
   }
@@ -286,14 +286,14 @@ async function submitModal() {
     if (editingCamera.value) {
       await updateCamera(editingCamera.value.camera_id, {
         camera_name:      form.value.camera_name,
-        ip_address:       form.value.ip_address,
+        rtsp_url:       form.value.rtsp_url,
         status:           form.value.status,
         assigned_room_id: form.value.assigned_room_id,
       })
     } else {
       await addCamera({
         camera_name:      form.value.camera_name,
-        ip_address:       form.value.ip_address,
+        rtsp_url:       form.value.rtsp_url,
         status:           form.value.status,
         assigned_room_id: form.value.assigned_room_id,
       })
@@ -314,4 +314,4 @@ async function confirmDelete(cam) {
 
 <style>
 @import '../assets/cameras.css';
-</style>
+</style>1

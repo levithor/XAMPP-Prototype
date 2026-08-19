@@ -39,20 +39,49 @@ exports.getLatestOccupancy = async (req, res) => {
 
 exports.createLog = async (req, res) => {
     try {
-        const { room_id, camera_id, occupancy_count } = req.body;
+        const { camera_id, occupancy_count } = req.body;
+
+        const [cameraRows] = await db.query(
+            `SELECT assigned_room_id
+            FROM cameras
+            WHERE camera_id = ?`,
+            [camera_id]
+        );
+
+        if (cameraRows.length === 0) {
+            return res.status(404).json({
+                error: "Camera not found."
+            });
+        }
+
+        const room_id = cameraRows[0].assigned_room_id;
+
+        if (!room_id) {
+            return res.status(400).json({
+                error: "Camera is not assigned to a room."
+            });
+        }
 
         const [result] = await db.query(
-            `INSERT INTO occupancy_logs (room_id, camera_id, occupancy_count)
-             VALUES (?, ?, ?)`,
+            `INSERT INTO occupancy_logs
+            (room_id, camera_id, occupancy_count)
+            VALUES (?, ?, ?)`,
             [room_id, camera_id, occupancy_count]
+        );
+
+        await db.query(
+            `UPDATE cameras
+            SET last_communication = NOW()
+            WHERE camera_id = ?`,
+            [camera_id]
         );
 
         // Check thresholds and fire/resolve alerts automatically.
         // This runs after the response is sent so the camera isn't
         // kept waiting on alert logic.
-        res.status(201).json({ log_id: result.insertId });
-
         await checkAndCreateAlerts(room_id, occupancy_count);
+
+        res.status(201).json({log_id: result.insertId});
 
     } catch (err) {
         res.status(500).json({ error: err.message });
