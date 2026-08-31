@@ -4,6 +4,7 @@
 
 Run 'npm install' command in a terminal within the backend folder
 
+
 ### Configure Environment Variables
 
 Create a .env file with data that corresponds to your SQL stuff:
@@ -14,6 +15,7 @@ DB_PASSWORD=password
 DB_NAME=occuvision
 
 PORT=3000
+
 
 ### Start Server
 
