@@ -31,6 +31,7 @@ def process_frame(frame, frame_count, detector, backend):
 
 def main():
     # source = VideoSource("input/demo.mp4", loop=True)
+    # change source to CameraSource in backend call
     source = CameraSource("rtsp://admin:Dahua01$@192.168.1.108:554/cam/realmonitor?channel=1&subtype=1")
     detector = YOLODetector()
     backend = BackendClient()
