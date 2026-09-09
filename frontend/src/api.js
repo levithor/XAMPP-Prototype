@@ -121,3 +121,6 @@ export async function updateCamera(cameraId, data) {
 export async function deleteCamera(cameraId) {
   return apiFetch(`/api/cameras/${cameraId}`, { method: 'DELETE' })
 }
+export async function fetchForecast(qs = '') {
+  return apiFetch(`/api/analytics/forecast${qs ? '?' + qs : ''}`)
+}

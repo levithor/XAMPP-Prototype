@@ -12,5 +12,7 @@ router.get('/weekly-heatmap',
 
 router.get('/room-utilization',
     analyticsController.getRoomUtilization);
+router.get('/forecast',
+    requireAuth, analytics.getForecast);
 
 module.exports = router;

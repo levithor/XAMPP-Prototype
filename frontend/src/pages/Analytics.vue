@@ -123,48 +123,177 @@
       <div class="analytics-grid">
 
         <div class="panel">
-          <div class="panel-header">
-            <span class="section-title">hourly occupancy trend</span>
+          <!-- TAB SWITCHER -->
+          <div class="panel-header" style="margin-bottom:0;">
+            <div class="chart-tabs">
+              <button class="chart-tab" :class="{ active: chartTab === 'trend' }"
+                      @click="chartTab = 'trend'">
+                <i class="ti ti-chart-line" /> trend
+              </button>
+              <button class="chart-tab" :class="{ active: chartTab === 'forecast' }"
+                      @click="chartTab = 'forecast'">
+                <i class="ti ti-brain" /> forecast
+              </button>
+            </div>
             <span class="date-badge">{{ selectedLabel }}{{ selectedRoomId ? ' · ' + selectedRoomLabel : '' }}</span>
           </div>
-          <div class="chart-legend">
-            <div class="legend-item"><span class="legend-swatch"></span> avg occupancy</div>
-            <div class="legend-item"><span class="legend-swatch dashed"></span> capacity limit (80%)</div>
-          </div>
-          <div v-if="loading" class="chart-placeholder">loading…</div>
-          <svg v-else viewBox="0 0 700 280" style="width:100%; height:260px;">
-            <g stroke="var(--color-border)" stroke-width="0.5">
-              <line v-for="(pct,i) in [100,80,60,40,20,0]" :key="pct"
-                    x1="40" :y1="20 + i*42" x2="690" :y2="20 + i*42" />
-            </g>
-            <g stroke="var(--color-border)" stroke-width="1">
-              <line x1="40" y1="20" x2="40" y2="230" />
-              <line x1="40" y1="230" x2="690" y2="230" />
-            </g>
-            <g font-size="10" fill="var(--color-text-muted)" font-family="-apple-system,sans-serif">
-              <text x="32" y="24"  text-anchor="end">100%</text>
-              <text x="32" y="66"  text-anchor="end">80%</text>
-              <text x="32" y="108" text-anchor="end">60%</text>
-              <text x="32" y="150" text-anchor="end">40%</text>
-              <text x="32" y="192" text-anchor="end">20%</text>
-              <text x="32" y="234" text-anchor="end">0%</text>
-            </g>
-            <g font-size="10" fill="var(--color-text-muted)" font-family="-apple-system,sans-serif" text-anchor="middle">
-              <text v-for="(lbl, i) in visibleXLabels" :key="lbl" :x="xPos(i)" y="250">{{ lbl }}</text>
-            </g>
-            <line x1="40" y1="66" x2="690" y2="66"
-                  stroke="var(--color-danger)" stroke-width="1.5" stroke-dasharray="6 5" />
-            <path v-if="chartPoints.length > 1" :d="areaPath"
-                  fill="var(--color-accent)" opacity="0.08" />
-            <path v-if="chartPoints.length > 1" :d="linePath"
-                  fill="none" stroke="var(--color-accent)" stroke-width="2.5"
-                  stroke-linecap="round" stroke-linejoin="round" />
-            <circle v-for="p in chartPoints" :key="p.x"
-                    :cx="p.x" :cy="p.y" r="4" fill="var(--color-accent)" />
-            <text v-if="chartPoints.length === 0" x="365" y="130"
-                  text-anchor="middle" font-size="13" fill="var(--color-text-muted)"
-                  font-family="-apple-system,sans-serif">no data for this period</text>
-          </svg>
+
+          <!-- ── TREND TAB ── -->
+          <template v-if="chartTab === 'trend'">
+            <div class="chart-legend" style="margin-top:14px;">
+              <div class="legend-item"><span class="legend-swatch"></span> avg occupancy</div>
+              <div class="legend-item"><span class="legend-swatch dashed"></span> capacity limit (80%)</div>
+            </div>
+            <div v-if="loading" class="chart-placeholder">loading…</div>
+            <svg v-else viewBox="0 0 700 280" style="width:100%; height:260px;">
+              <g stroke="var(--color-border)" stroke-width="0.5">
+                <line v-for="(pct,i) in [100,80,60,40,20,0]" :key="pct"
+                      x1="40" :y1="20 + i*42" x2="690" :y2="20 + i*42" />
+              </g>
+              <g stroke="var(--color-border)" stroke-width="1">
+                <line x1="40" y1="20" x2="40" y2="230" />
+                <line x1="40" y1="230" x2="690" y2="230" />
+              </g>
+              <g font-size="10" fill="var(--color-text-muted)" font-family="-apple-system,sans-serif">
+                <text x="32" y="24"  text-anchor="end">100%</text>
+                <text x="32" y="66"  text-anchor="end">80%</text>
+                <text x="32" y="108" text-anchor="end">60%</text>
+                <text x="32" y="150" text-anchor="end">40%</text>
+                <text x="32" y="192" text-anchor="end">20%</text>
+                <text x="32" y="234" text-anchor="end">0%</text>
+              </g>
+              <g font-size="10" fill="var(--color-text-muted)" font-family="-apple-system,sans-serif" text-anchor="middle">
+                <text v-for="(lbl, i) in visibleXLabels" :key="lbl" :x="xPos(i)" y="250">{{ lbl }}</text>
+              </g>
+              <line x1="40" y1="66" x2="690" y2="66"
+                    stroke="var(--color-danger)" stroke-width="1.5" stroke-dasharray="6 5" />
+              <path v-if="chartPoints.length > 1" :d="areaPath"
+                    fill="var(--color-accent)" opacity="0.08" />
+              <path v-if="chartPoints.length > 1" :d="linePath"
+                    fill="none" stroke="var(--color-accent)" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round" />
+              <circle v-for="p in chartPoints" :key="p.x"
+                      :cx="p.x" :cy="p.y" r="4" fill="var(--color-accent)" />
+              <text v-if="chartPoints.length === 0" x="365" y="130"
+                    text-anchor="middle" font-size="13" fill="var(--color-text-muted)"
+                    font-family="-apple-system,sans-serif">no data for this period</text>
+            </svg>
+          </template>
+
+          <!-- ── FORECAST TAB ── -->
+          <template v-else>
+            <div style="display:flex; align-items:center; gap:16px; margin-top:14px; margin-bottom:12px; flex-wrap:wrap;">
+              <!-- Forecast date picker -->
+              <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--color-text-secondary);">
+                <i class="ti ti-calendar" style="font-size:14px;" />
+                <span>forecast date:</span>
+                <input type="date" v-model="forecastDate" :min="tomorrowStr"
+                       style="font-size:12px; font-family:inherit; border:0.5px solid var(--color-border);
+                              border-radius:8px; padding:5px 9px; outline:none; background:#fafaf8;" />
+              </div>
+              <!-- Hour range -->
+              <div style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--color-text-secondary);">
+                <i class="ti ti-clock" style="font-size:14px;" />
+                <span>hours:</span>
+                <select v-model="forecastHourFrom" class="time-select" style="font-size:12px; padding:5px 8px; width:80px;">
+                  <option v-for="h in hourOptions" :key="h.v" :value="h.v">{{ h.l }}</option>
+                </select>
+                <span>–</span>
+                <select v-model="forecastHourTo" class="time-select" style="font-size:12px; padding:5px 8px; width:80px;">
+                  <option v-for="h in hourOptions" :key="h.v" :value="h.v" :disabled="h.v <= forecastHourFrom">{{ h.l }}</option>
+                </select>
+                <button @click="runForecast" class="apply-btn"
+                        style="padding:5px 14px; font-size:12px; border-radius:20px; width:auto;">
+                  <i class="ti ti-refresh" /> predict
+                </button>
+              </div>
+            </div>
+
+            <!-- Legend -->
+            <div class="chart-legend">
+              <div class="legend-item">
+                <span style="display:inline-block;width:14px;height:3px;background:var(--color-accent);border-radius:2px;"></span>
+                predicted occupancy
+              </div>
+              <div class="legend-item">
+                <span style="display:inline-block;width:14px;height:3px;background:#bfdbfe;border-radius:2px;"></span>
+                confidence band (±1 SD)
+              </div>
+              <div class="legend-item"><span class="legend-swatch dashed"></span> capacity limit (80%)</div>
+            </div>
+
+            <div v-if="forecastLoading" class="chart-placeholder">
+              <i class="ti ti-loader" style="font-size:20px; margin-bottom:8px; display:block;" />
+              running forecast…
+            </div>
+            <div v-else-if="forecastPoints.length === 0" class="chart-placeholder">
+              <i class="ti ti-chart-dots" style="font-size:28px; margin-bottom:8px; display:block; color:var(--color-text-muted);" />
+              <span>not enough historical data to forecast.</span><br>
+              <span style="font-size:11px; margin-top:4px; display:block;">at least a few days of occupancy logs are needed.</span>
+            </div>
+            <svg v-else viewBox="0 0 700 280" style="width:100%; height:260px;">
+              <!-- gridlines -->
+              <g stroke="var(--color-border)" stroke-width="0.5">
+                <line v-for="(pct,i) in [100,80,60,40,20,0]" :key="pct"
+                      x1="40" :y1="20 + i*42" x2="690" :y2="20 + i*42" />
+              </g>
+              <g stroke="var(--color-border)" stroke-width="1">
+                <line x1="40" y1="20" x2="40" y2="230" />
+                <line x1="40" y1="230" x2="690" y2="230" />
+              </g>
+              <!-- y labels -->
+              <g font-size="10" fill="var(--color-text-muted)" font-family="-apple-system,sans-serif">
+                <text x="32" y="24"  text-anchor="end">100%</text>
+                <text x="32" y="66"  text-anchor="end">80%</text>
+                <text x="32" y="108" text-anchor="end">60%</text>
+                <text x="32" y="150" text-anchor="end">40%</text>
+                <text x="32" y="192" text-anchor="end">20%</text>
+                <text x="32" y="234" text-anchor="end">0%</text>
+              </g>
+              <!-- x labels -->
+              <g font-size="10" fill="var(--color-text-muted)" font-family="-apple-system,sans-serif" text-anchor="middle">
+                <text v-for="(lbl, i) in forecastXLabels" :key="lbl" :x="forecastXPos(i)" y="250">{{ lbl }}</text>
+              </g>
+              <!-- 80% capacity dashed line -->
+              <line x1="40" y1="66" x2="690" y2="66"
+                    stroke="var(--color-danger)" stroke-width="1.5" stroke-dasharray="6 5" />
+              <!-- confidence band (filled area between lower and upper) -->
+              <path v-if="forecastBandPath" :d="forecastBandPath"
+                    fill="#bfdbfe" opacity="0.35" />
+              <!-- predicted line -->
+              <path v-if="forecastLinePath" :d="forecastLinePath"
+                    fill="none" stroke="var(--color-accent)" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6 3" />
+              <!-- data points with tooltip title -->
+              <circle v-for="p in forecastPoints" :key="p.x"
+                      :cx="p.x" :cy="p.y" r="4" fill="var(--color-accent)">
+                <title>{{ forecastHourLabel(p.hour) }}: {{ p.pct }}%</title>
+              </circle>
+            </svg>
+
+            <!-- Summary row -->
+            <div v-if="forecastPoints.length > 0"
+                 style="display:flex; gap:20px; margin-top:10px; padding-top:10px;
+                        border-top:0.5px solid var(--color-border); flex-wrap:wrap;">
+              <div style="font-size:11px; color:var(--color-text-muted);">
+                <span style="font-weight:500; color:var(--color-text-primary);">
+                  peak: {{ forecastPeak.pct }}%
+                </span>
+                at {{ forecastHourLabel(forecastPeak.hour) }}
+              </div>
+              <div style="font-size:11px; color:var(--color-text-muted);">
+                <span style="font-weight:500; color:var(--color-text-primary);">
+                  avg: {{ forecastAvg }}%
+                </span>
+                over selected window
+              </div>
+              <div v-if="forecastOverCapacity.length > 0"
+                   style="font-size:11px; color:var(--color-danger); font-weight:500;">
+                <i class="ti ti-alert-triangle" style="font-size:12px;" />
+                over-capacity predicted at {{ forecastOverCapacity.map(p => forecastHourLabel(p.hour)).join(', ') }}
+              </div>
+            </div>
+          </template>
         </div>
 
         <div class="panel">
@@ -260,7 +389,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { fetchHourlyTrend, fetchWeeklyHeatmap, fetchRoomUtilization, fetchRooms, fetchAlerts } from '../api.js'
+import { fetchHourlyTrend, fetchWeeklyHeatmap, fetchRoomUtilization, fetchRooms, fetchAlerts, fetchForecast } from '../api.js'
 
 const rooms          = ref([])
 const selectedRoomId = ref(null)   
@@ -507,6 +636,112 @@ function formatTime(ts) {
   if (!ts) return '--:--'
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
+
+// ── FORECAST ─────────────────────────────────────────────────────────────────
+const chartTab       = ref('trend')   // 'trend' | 'forecast'
+const forecastLoading = ref(false)
+const forecastData   = ref([])        // [{ hour, predicted_pct, lower_pct, upper_pct }]
+
+const tomorrowStr = computed(() => {
+  const d = new Date(); d.setDate(d.getDate() + 1)
+  return d.toISOString().slice(0, 10)
+})
+const forecastDate     = ref(tomorrowStr.value)
+const forecastHourFrom = ref(8)
+const forecastHourTo   = ref(18)
+
+async function runForecast() {
+  forecastLoading.value = true
+  try {
+    const p = new URLSearchParams({
+      date:      forecastDate.value,
+      hour_from: forecastHourFrom.value,
+      hour_to:   forecastHourTo.value,
+    })
+    if (selectedRoomId.value) p.set('room_id', selectedRoomId.value)
+    forecastData.value = await fetchForecast(p.toString())
+  } catch (err) {
+    console.warn('Forecast failed:', err.message)
+    forecastData.value = []
+  } finally {
+    forecastLoading.value = false
+  }
+}
+
+// Run forecast automatically when tab is switched to it
+watch(chartTab, val => { if (val === 'forecast') runForecast() })
+
+// x-axis helpers for forecast
+const forecastHours = computed(() => forecastData.value.map(d => d.hour))
+
+const forecastXLabels = computed(() =>
+  forecastHours.value.map(h => {
+    if (h === 0)  return '12am'
+    if (h === 12) return '12pm'
+    return h < 12 ? `${h}am` : `${h - 12}pm`
+  })
+)
+
+function forecastXPos(i) {
+  const n = forecastHours.value.length
+  if (n <= 1) return 365
+  return 60 + i * (630 / (n - 1))
+}
+
+function forecastHourLabel(h) {
+  if (h === 0)  return '12am'
+  if (h === 12) return '12pm'
+  return h < 12 ? `${h}am` : `${h - 12}pm`
+}
+
+// SVG points and paths for forecast chart
+const forecastPoints = computed(() =>
+  forecastData.value.map((d, i) => ({
+    x:    forecastXPos(i),
+    y:    230 - Math.min(100, Math.max(0, d.predicted_pct)) * 2.1,
+    pct:  d.predicted_pct,
+    hour: d.hour,
+  }))
+)
+
+const forecastLinePath = computed(() =>
+  forecastPoints.value.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
+)
+
+// Confidence band: upper line forward then lower line backward = closed shape
+const forecastBandPath = computed(() => {
+  const data = forecastData.value
+  if (data.length < 2) return ''
+  const upperPts = data.map((d, i) => ({
+    x: forecastXPos(i),
+    y: 230 - Math.min(100, Math.max(0, d.upper_pct)) * 2.1
+  }))
+  const lowerPts = data.map((d, i) => ({
+    x: forecastXPos(i),
+    y: 230 - Math.min(100, Math.max(0, d.lower_pct)) * 2.1
+  }))
+  const up   = upperPts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
+  const down = [...lowerPts].reverse().map(p => `L${p.x},${p.y}`).join(' ')
+  return `${up} ${down} Z`
+})
+
+// Summary stats
+const forecastPeak = computed(() => {
+  if (!forecastData.value.length) return { hour: 0, pct: 0 }
+  return forecastData.value.reduce((best, d) =>
+    d.predicted_pct > best.predicted_pct ? { hour: d.hour, pct: d.predicted_pct } : best,
+    { hour: 0, pct: 0 }
+  )
+})
+
+const forecastAvg = computed(() => {
+  if (!forecastData.value.length) return 0
+  return Math.round(forecastData.value.reduce((s, d) => s + d.predicted_pct, 0) / forecastData.value.length)
+})
+
+const forecastOverCapacity = computed(() =>
+  forecastPoints.value.filter(p => p.pct >= 80)
+)
 </script>
 
 <style>
