@@ -1,18 +1,11 @@
-const express = require('express');
-const router  = express.Router();
+const express    = require('express');
+const router     = express.Router();
+const analytics  = require('../controllers/analyticsController');
+const { requireAuth } = require('../middleware/auth');
 
-const analyticsController =
-    require('../controllers/analyticsController');
-
-router.get('/hourly-trend',
-    analyticsController.getHourlyTrend);
-
-router.get('/weekly-heatmap',
-    analyticsController.getWeeklyHeatmap);
-
-router.get('/room-utilization',
-    analyticsController.getRoomUtilization);
-router.get('/forecast',
-    requireAuth, analytics.getForecast);
+router.get('/hourly-trend',      analytics.getHourlyTrend);
+router.get('/weekly-heatmap',    analytics.getWeeklyHeatmap);
+router.get('/room-utilization',  analytics.getRoomUtilization);
+router.get('/forecast',          analytics.getForecast);
 
 module.exports = router;

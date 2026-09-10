@@ -102,7 +102,7 @@ exports.getForecast = async (req, res) => {
             params
         );
 
-        // Target day-of-week for the forecast date (MySQL DAYOFWEEK: 1=Sun…7=Sat)
+
         const forecastDow = new Date(date).getDay() + 1
 
         // Build per-hour averages: prefer same-DOW rows, fall back to all-DOW
@@ -119,7 +119,7 @@ exports.getForecast = async (req, res) => {
 
         const avg = arr => arr.reduce((a, b) => a + b, 0) / arr.length
 
-        // Build (x=hour, y=avg_pct) pairs for linear regression
+
         const points = []
         for (let h = 0; h <= 23; h++) {
             const vals = byHourSameDow[h]?.length ? byHourSameDow[h] : byHourAllDow[h]
@@ -130,7 +130,7 @@ exports.getForecast = async (req, res) => {
             return res.json([]) // not enough history
         }
 
-        // Simple linear regression: y = mx + b
+
         const n   = points.length
         const sumX = points.reduce((s, p) => s + p.x, 0)
         const sumY = points.reduce((s, p) => s + p.y, 0)
