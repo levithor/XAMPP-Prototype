@@ -174,8 +174,47 @@
               <path v-if="chartPoints.length > 1" :d="linePath"
                     fill="none" stroke="var(--color-accent)" stroke-width="2.5"
                     stroke-linecap="round" stroke-linejoin="round" />
+              <!-- Invisible wider hit area for easier hover -->
+              <circle v-for="p in chartPoints" :key="'hit-' + p.x"
+                      :cx="p.x" :cy="p.y" r="12" fill="transparent"
+                      style="cursor:pointer"
+                      @mouseenter="hoveredPoint = p"
+                      @mouseleave="hoveredPoint = null" />
+              <!-- Visible dot -->
               <circle v-for="p in chartPoints" :key="p.x"
-                      :cx="p.x" :cy="p.y" r="4" fill="var(--color-accent)" />
+                      :cx="p.x" :cy="p.y"
+                      :r="hoveredPoint && hoveredPoint.x === p.x ? 6 : 4"
+                      fill="var(--color-accent)"
+                      style="pointer-events:none; transition:r 0.1s" />
+              <!-- Tooltip -->
+              <g v-if="hoveredPoint" style="pointer-events:none">
+                <!-- Vertical guide line -->
+                <line :x1="hoveredPoint.x" y1="20"
+                      :x2="hoveredPoint.x" :y2="hoveredPoint.y - 8"
+                      stroke="var(--color-border)" stroke-width="1" stroke-dasharray="3 2" />
+                <!-- Tooltip box — flip left if near right edge -->
+                <rect
+                  :x="hoveredPoint.x > 580 ? hoveredPoint.x - 102 : hoveredPoint.x + 10"
+                  :y="Math.max(8, hoveredPoint.y - 36)"
+                  width="92" height="36" rx="6"
+                  fill="var(--color-text-primary)" opacity="0.92" />
+                <text
+                  :x="hoveredPoint.x > 580 ? hoveredPoint.x - 56 : hoveredPoint.x + 56"
+                  :y="Math.max(8, hoveredPoint.y - 36) + 14"
+                  text-anchor="middle" font-size="11" font-weight="600"
+                  fill="var(--color-surface)"
+                  font-family="-apple-system,sans-serif">
+                  {{ hourLabel(hoveredPoint.hour) }}
+                </text>
+                <text
+                  :x="hoveredPoint.x > 580 ? hoveredPoint.x - 56 : hoveredPoint.x + 56"
+                  :y="Math.max(8, hoveredPoint.y - 36) + 27"
+                  text-anchor="middle" font-size="11"
+                  fill="var(--color-surface)" opacity="0.85"
+                  font-family="-apple-system,sans-serif">
+                  avg {{ Math.round(hoveredPoint.pct) }}%
+                </text>
+              </g>
               <text v-if="chartPoints.length === 0" x="365" y="130"
                     text-anchor="middle" font-size="13" fill="var(--color-text-muted)"
                     font-family="-apple-system,sans-serif">no data for this period</text>
@@ -291,17 +330,41 @@
         <div class="panel">
           <div class="panel-header">
             <span class="section-title">{{ isToday ? 'live alerts' : 'alerts that day' }}</span>
+            <span v-if="alertRooms.length > 0" class="alert-meta" style="font-size:11px;">
+              {{ alertRooms.length }} total
+            </span>
           </div>
           <div v-if="alertRooms.length === 0" class="alert-meta" style="padding:8px 0;">
             no active alerts
           </div>
-          <div v-for="alert in alertRooms" :key="alert.alert_id"
-               class="alert-card" :class="alert.alert_type === 'overcrowding' ? 'danger' : 'warning'">
-            <div class="alert-dot" :class="alert.alert_type === 'overcrowding' ? 'danger' : 'warning'"></div>
+          <div v-for="alert in pagedAlerts" :key="alert.alert_id"
+               class="alert-card" :class="alertCardClass(alert.alert_type)">
+            <div class="alert-dot" :class="alertDotClass(alert.alert_type)"></div>
             <div>
               <div class="alert-title">{{ alert.message }}</div>
               <div class="alert-meta">{{ formatTime(alert.created_at) }}</div>
             </div>
+          </div>
+          <!-- Pagination controls -->
+          <div v-if="alertTotalPages > 1"
+               style="display:flex; align-items:center; justify-content:space-between; margin-top:12px; padding-top:10px; border-top:0.5px solid var(--color-border);">
+            <button
+              @click="alertPage > 1 && alertPage--"
+              :disabled="alertPage === 1"
+              style="font-size:12px; background:none; border:0.5px solid var(--color-border); border-radius:6px; padding:4px 10px; cursor:pointer; color:var(--color-text-secondary);"
+              :style="alertPage === 1 ? 'opacity:0.4; cursor:default;' : ''">
+              <i class="ti ti-chevron-left" /> prev
+            </button>
+            <span style="font-size:11px; color:var(--color-text-muted);">
+              {{ alertPage }} / {{ alertTotalPages }}
+            </span>
+            <button
+              @click="alertPage < alertTotalPages && alertPage++"
+              :disabled="alertPage === alertTotalPages"
+              style="font-size:12px; background:none; border:0.5px solid var(--color-border); border-radius:6px; padding:4px 10px; cursor:pointer; color:var(--color-text-secondary);"
+              :style="alertPage === alertTotalPages ? 'opacity:0.4; cursor:default;' : ''">
+              next <i class="ti ti-chevron-right" />
+            </button>
           </div>
         </div>
       </div>
@@ -345,7 +408,7 @@
         <div class="panel">
           <div class="panel-header">
             <span class="section-title">weekly peak hours heatmap</span>
-            <span class="date-badge">{{ heatmapWeekLabel }}{{ selectedRoomId ? ' · ' + selectedRoomLabel : '' }}</span>
+            <span class="date-badge">4-week window{{ selectedRoomId ? ' · ' + selectedRoomLabel : '' }}</span>
           </div>
           <table class="heatmap-table">
             <thead>
@@ -358,9 +421,7 @@
               <tr v-for="row in heatmapRows" :key="row.day">
                 <td class="day-label">{{ row.day }}</td>
                 <td v-for="(v, i) in row.values" :key="i">
-                  <div class="heat-cell" :class="'heat-' + heatLevel(v)">
-                    {{ v === null ? '—' : v + '%' }}
-                  </div>
+                  <div class="heat-cell" :class="'heat-' + heatLevel(v)">{{ v }}%</div>
                 </td>
               </tr>
             </tbody>
@@ -475,8 +536,7 @@ const hourOptions = Array.from({ length: 24 }, (_, h) => ({
 }))
 
 const hourlyTrend = ref([])
-const heatmapData  = ref([])
-const heatmapWeek  = ref({ start: '', end: '' })
+const heatmapData = ref([])
 const utilization = ref([])
 const loading     = ref(false)
 const alerts      = ref([])
@@ -498,8 +558,7 @@ async function refresh() {
       fetchAlerts().catch(() => []),
     ])
     hourlyTrend.value = trend
-    heatmapData.value = heatmap.rows ?? heatmap
-    heatmapWeek.value = { start: heatmap.week_start ?? '', end: heatmap.week_end ?? '' }
+    heatmapData.value = heatmap
     utilization.value = util
     alerts.value      = alertList
   } catch (err) {
@@ -540,6 +599,37 @@ const alertRooms = computed(() =>
     .filter(a => !selectedRoomId.value || a.room_id === selectedRoomId.value)
 )
 
+// ── Alert pagination ──────────────────────────────────────────────────────
+const ALERTS_PER_PAGE = 4
+const alertPage = ref(1)
+
+// Reset to page 1 whenever the filtered list changes
+watch(alertRooms, () => { alertPage.value = 1 })
+
+const alertTotalPages = computed(() =>
+  Math.max(1, Math.ceil(alertRooms.value.length / ALERTS_PER_PAGE))
+)
+
+const pagedAlerts = computed(() => {
+  const start = (alertPage.value - 1) * ALERTS_PER_PAGE
+  return alertRooms.value.slice(start, start + ALERTS_PER_PAGE)
+})
+
+// Alert card class helpers — handle all three alert types correctly
+function alertCardClass(type) {
+  if (type === 'overcrowding')       return 'danger'
+  if (type === 'near_capacity')      return 'warning'
+  if (type === 'system_malfunction') return 'warning'
+  return 'warning'
+}
+
+function alertDotClass(type) {
+  if (type === 'overcrowding')       return 'danger'
+  if (type === 'near_capacity')      return 'warning'
+  if (type === 'system_malfunction') return 'warning'
+  return 'warning'
+}
+
 const visibleHours = computed(() => {
   const hrs = []
   for (let h = hourFrom.value; h <= hourTo.value; h++) hrs.push(h)
@@ -565,10 +655,19 @@ const chartPoints = computed(() => {
   hourlyTrend.value.forEach(d => { byHour[d.hour] = d.avg_pct })
   return visibleHours.value
     .map((h, i) => byHour[h] !== undefined
-      ? { x: xPos(i), y: 230 - Math.min(100, Math.max(0, byHour[h])) * 2.1 }
+      ? { x: xPos(i), y: 230 - Math.min(100, Math.max(0, byHour[h])) * 2.1, pct: byHour[h], hour: h }
       : null)
     .filter(Boolean)
 })
+
+// ── Trend tooltip ────────────────────────────────────────────────────────
+const hoveredPoint = ref(null)   // { x, y, pct, hour } | null
+
+function hourLabel(h) {
+  if (h === 0)  return '12am'
+  if (h === 12) return '12pm'
+  return h < 12 ? `${h}am` : `${h - 12}pm`
+}
 
 const linePath = computed(() =>
   chartPoints.value.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
@@ -582,38 +681,30 @@ const areaPath = computed(() => {
 const HEATMAP_HOURS     = [8,10,12,14,16,18,20,22]
 const heatmapHourLabels = ['8am','10am','12pm','2pm','4pm','6pm','8pm','10pm']
 const DAY_LABELS        = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-// Mon–Sun order for display (MySQL DAYOFWEEK: 1=Sun…7=Sat)
-const DISPLAY_DOWS      = [2,3,4,5,6,7,1] // Mon=2 … Sun=1
 
-const heatmapWeekLabel = computed(() => {
-  if (!heatmapWeek.value.start) return 'this week'
-  const fmt = d => new Date(d + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' })
-  return `${fmt(heatmapWeek.value.start)} – ${fmt(heatmapWeek.value.end)}`
-})
+const fallbackHeatmap = [
+  { day: 'Mon', values: [10,40,75,80,70,30,5,0] },
+  { day: 'Tue', values: [15,55,85,90,80,45,10,0] },
+  { day: 'Wed', values: [20,60,100,95,88,50,15,0] },
+  { day: 'Thu', values: [12,45,70,75,65,35,8,0] },
+  { day: 'Fri', values: [18,50,80,85,72,20,5,0] },
+]
 
 const heatmapRows = computed(() => {
-  // Build lookup from real data: lookup[dow][hour] = avg_pct
+  if (!heatmapData.value.length) return fallbackHeatmap
   const lookup = {}
   heatmapData.value.forEach(r => {
-    if (!lookup[r.day_of_week]) lookup[r.day_of_week] = {}
+    lookup[r.day_of_week] = lookup[r.day_of_week] || {}
     lookup[r.day_of_week][r.hour] = Math.round(r.avg_pct)
   })
-
-  // Always render all 7 days in Mon–Sun order.
-  // If a day has no data at all, all its cells are null → shows —
-  // If a day has some data but not for a specific hour, that cell is null → shows —
-  return DISPLAY_DOWS.map(dow => ({
+  const days = Object.keys(lookup).map(Number).sort((a,b) => a-b)
+  return days.map(dow => ({
     day: DAY_LABELS[dow - 1],
-    values: HEATMAP_HOURS.map(h => {
-      if (!lookup[dow]) return null            // whole day has no data
-      if (lookup[dow][h] === undefined) return null  // this hour has no data
-      return lookup[dow][h]
-    }),
+    values: HEATMAP_HOURS.map(h => lookup[dow][h] ?? 0)
   }))
 })
 
 function heatLevel(v) {
-  if (v === null || v === undefined) return 'empty'
   if (v >= 100) return 4
   if (v >= 80)  return 3
   if (v >= 50)  return 2

@@ -17,6 +17,7 @@
 
     <div class="content">
 
+      <!-- ── Stat cards ─────────────────────────────────────────────────── -->
       <div class="stat-grid">
         <div class="stat-card">
           <div class="stat-icon blue"><i class="ti ti-layout-grid" /></div>
@@ -31,10 +32,10 @@
           <div class="stat-sub">across all active rooms</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon amber"><i class="ti ti-clock" /></div>
-          <div class="stat-label">peak hour today</div>
-          <div class="stat-value">10am</div>
-          <div class="stat-sub">avg 84% utilization</div>
+          <div class="stat-icon blue"><i class="ti ti-camera" /></div>
+          <div class="stat-label">cameras online</div>
+          <div class="stat-value">{{ stats.camerasOnline }}</div>
+          <div class="stat-sub">of {{ cameras.length }} configured</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon red"><i class="ti ti-alert-circle" /></div>
@@ -46,6 +47,7 @@
         </div>
       </div>
 
+      <!-- ── Live room status ───────────────────────────────────────────── -->
       <div>
         <div class="section-header">
           <span class="section-title">live room status</span>
@@ -56,7 +58,6 @@
         <div class="room-grid">
           <div v-for="room in rooms" :key="room.room_id" class="room-card">
             <div class="room-card-header">
-              <!-- occupancyController returns room_name from the JOIN -->
               <div class="room-name">{{ room.room_name }}</div>
               <span class="room-badge" :class="statusFor(room).badge">
                 {{ statusFor(room).label }}
@@ -74,42 +75,65 @@
               </div>
             </div>
             <div class="room-meta">
-              {{ room.camera_id || 'no camera' }} &nbsp;·&nbsp; {{ timeAgo(room.recorded_at) }}
+              {{ room.camera_id ? 'cam ' + room.camera_id : 'no camera' }}
+              &nbsp;·&nbsp; {{ timeAgo(room.recorded_at) }}
             </div>
           </div>
         </div>
       </div>
 
+      <!-- ── Bottom grid: live alerts + camera status ───────────────────── -->
       <div class="bottom-grid">
 
+        <!-- Live alerts (real data from /api/alerts) -->
         <div class="panel">
           <div class="panel-header">
-            <span class="section-title">activity feed</span>
-            <span class="section-link">view all <i class="ti ti-arrow-right" style="font-size:12px" /></span>
+            <span class="section-title">live alerts</span>
+            <router-link to="/alerts" class="section-link" style="text-decoration:none;">
+              view all <i class="ti ti-arrow-right" style="font-size:12px" />
+            </router-link>
           </div>
-          <div class="feed-item" v-for="item in feed" :key="item.text">
-            <div class="feed-dot" :style="{ background: item.color }"></div>
+
+          <div v-if="activeAlerts.length === 0"
+               style="padding:16px 0; font-size:13px; color:var(--color-text-muted); text-align:center;">
+            <i class="ti ti-circle-check" style="font-size:24px; display:block; margin-bottom:6px;" />
+            no active alerts
+          </div>
+
+          <div class="feed-item" v-for="alert in activeAlerts" :key="alert.alert_id">
+            <div class="feed-dot" :style="{ background: alertColor(alert.alert_type) }"></div>
             <div>
-              <div class="feed-text">{{ item.text }}</div>
-              <div class="feed-time">{{ item.time }}</div>
+              <div class="feed-text">{{ alert.message }}</div>
+              <div class="feed-time">{{ typeLabel(alert.alert_type) }} · {{ formatTime(alert.created_at) }}</div>
             </div>
           </div>
         </div>
 
+        <!-- Camera status (real data from /api/cameras) -->
         <div class="panel">
           <div class="panel-header">
             <span class="section-title">camera status</span>
-            <router-link to="/rooms" class="section-link" style="text-decoration:none;">
+            <router-link to="/cameras" class="section-link" style="text-decoration:none;">
               manage <i class="ti ti-arrow-right" style="font-size:12px" />
             </router-link>
           </div>
-          <div class="camera-item" v-for="room in rooms" :key="'cam-' + room.room_id">
+
+          <div v-if="cameras.length === 0"
+               style="padding:16px 0; font-size:13px; color:var(--color-text-muted); text-align:center;">
+            no cameras configured
+          </div>
+
+          <div class="camera-item" v-for="cam in cameras" :key="cam.camera_id">
             <div class="cam-icon"><i class="ti ti-camera" /></div>
             <div>
-              <div class="cam-name">{{ room.camera_id || 'no camera' }}</div>
-              <div class="cam-loc">{{ room.room_name }}</div>
+              <div class="cam-name">{{ cam.camera_name }}</div>
+              <div class="cam-loc">{{ roomName(cam.assigned_room_id) }}</div>
             </div>
-            <span class="cam-live">live</span>
+            <span v-if="cam.status === 'online'" class="cam-live">live</span>
+            <span v-else class="cam-live"
+                  style="color:var(--color-danger); background:var(--color-danger-bg);">
+              offline
+            </span>
           </div>
         </div>
 
@@ -120,10 +144,11 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { fetchLatestOccupancy, fetchAlerts } from '../api.js'
+import { fetchLatestOccupancy, fetchAlerts, fetchCameras, fetchRooms } from '../api.js'
 import { usePolling } from '../other/usePolling.js'
 import { getUser } from '../auth.js'
 
+// ── User / clock ──────────────────────────────────────────────────────────
 const storedUser = getUser()
 const username = computed(() =>
   storedUser?.username || storedUser?.name || 'admin'
@@ -148,43 +173,45 @@ let clockTimer
 onMounted(() => { updateDateTime(); clockTimer = setInterval(updateDateTime, 60000) })
 onUnmounted(() => clearInterval(clockTimer))
 
-const rooms = ref([])
+// ── Data ──────────────────────────────────────────────────────────────────
+const rooms   = ref([])   // from /api/occupancy/latest — has room_name, occupancy_count
+const roomList = ref([])  // from /api/rooms — used for camera room name lookup
+const cameras = ref([])   // from /api/cameras — has status, camera_name, assigned_room_id
+const alerts  = ref([])   // from /api/alerts
 const apiOnline = ref(true)
-const activeAlertCount = ref(0)
 
-const statusText = computed(() =>
-  apiOnline.value
-    ? `system online · ${rooms.value.length} cameras configured`
-    : 'system offline · check backend'
+// ── Computed ──────────────────────────────────────────────────────────────
+const activeAlerts = computed(() =>
+  alerts.value
+    .filter(a => !a.is_resolved)
+    .slice(0, 6) // cap at 6 so the panel doesn't overflow
 )
 
 const stats = computed(() => ({
   totalRooms:     rooms.value.length,
   occupiedRooms:  rooms.value.filter(r => (r.occupancy_count ?? 0) > 0).length,
   totalOccupants: rooms.value.reduce((s, r) => s + (r.occupancy_count ?? 0), 0),
-  activeAlerts:   activeAlertCount.value,
+  camerasOnline:  cameras.value.filter(c => c.status === 'online').length,
+  activeAlerts:   activeAlerts.value.length,
 }))
 
-async function refresh() {
-  try {
-    rooms.value = await fetchLatestOccupancy()
-    apiOnline.value = true
-  } catch {
-    apiOnline.value = false
-  }
-  try {
-    const alerts = await fetchAlerts()
-    activeAlertCount.value = alerts.filter(a => !Boolean(a.is_resolved)).length
-  } catch {}
-}
+const statusText = computed(() =>
+  apiOnline.value
+    ? `system online · ${cameras.value.filter(c => c.status === 'online').length} cameras live`
+    : 'system offline · check backend'
+)
 
-usePolling(refresh, 5000)
+// ── Helpers ───────────────────────────────────────────────────────────────
+function roomName(roomId) {
+  if (!roomId) return 'unassigned'
+  return roomList.value.find(r => r.room_id === roomId)?.room_name ?? `room ${roomId}`
+}
 
 function statusFor(room) {
   const p = pct(room)
-  if (p >= 100) return { label: 'over capacity', badge: 'badge-danger', fill: 'fill-danger' }
+  if (p >= 100) return { label: 'over capacity', badge: 'badge-danger',  fill: 'fill-danger' }
   if (p >= 85)  return { label: 'near capacity', badge: 'badge-warning', fill: 'fill-warning' }
-  return { label: 'normal', badge: 'badge-success', fill: 'fill-success' }
+  return              { label: 'normal',         badge: 'badge-success', fill: 'fill-success' }
 }
 
 function pct(room) {
@@ -195,16 +222,54 @@ function pct(room) {
 function timeAgo(ts) {
   if (!ts) return 'no data yet'
   const mins = Math.round((Date.now() - new Date(ts).getTime()) / 60000)
-  if (mins < 1) return 'just now'
+  if (mins < 1)   return 'just now'
   if (mins === 1) return '1 min ago'
   return `${mins} min ago`
 }
 
-const feed = [
-  { text: 'room 301 exceeded capacity — 48 of 40', time: '02:46 today', color: 'var(--color-danger)' },
-  { text: 'room 205 approaching capacity threshold', time: '02:45 today', color: 'var(--color-warning)' },
-  { text: 'room 205 — unusual activity outside normal hours', time: '12:55 today', color: 'var(--color-warning)' },
-  { text: 'room 301 returned to normal occupancy', time: '08:30 today', color: 'var(--color-success)' },
-  { text: 'system started — all cameras connected', time: '07:00 today', color: 'var(--color-accent)' },
-]
+function alertColor(type) {
+  if (type === 'overcrowding')       return 'var(--color-danger)'
+  if (type === 'near_capacity')      return 'var(--color-warning)'
+  if (type === 'system_malfunction') return 'var(--color-accent)'
+  return 'var(--color-text-muted)'
+}
+
+function typeLabel(type) {
+  if (type === 'overcrowding')       return 'overcrowding'
+  if (type === 'near_capacity')      return 'near capacity'
+  if (type === 'system_malfunction') return 'system'
+  return type ?? 'alert'
+}
+
+function formatTime(ts) {
+  if (!ts) return '--'
+  return new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+// ── Refresh ───────────────────────────────────────────────────────────────
+async function refresh() {
+  try {
+    const [occupancy, alertList, cameraList, allRooms] = await Promise.all([
+      fetchLatestOccupancy().catch(() => []),
+      fetchAlerts().catch(() => []),
+      fetchCameras().catch(() => []),
+      fetchRooms().catch(() => []),
+    ])
+
+    rooms.value    = occupancy
+    roomList.value = allRooms
+    cameras.value  = cameraList
+    alerts.value   = alertList.map(a => ({
+      ...a,
+      is_resolved: Boolean(a.is_resolved),
+      alert_type:  (a.alert_type ?? '').toLowerCase().trim(),
+    }))
+
+    apiOnline.value = true
+  } catch {
+    apiOnline.value = false
+  }
+}
+
+usePolling(refresh, 5000)
 </script>
