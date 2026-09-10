@@ -358,7 +358,9 @@
               <tr v-for="row in heatmapRows" :key="row.day">
                 <td class="day-label">{{ row.day }}</td>
                 <td v-for="(v, i) in row.values" :key="i">
-                  <div class="heat-cell" :class="'heat-' + heatLevel(v)">{{ v }}%</div>
+                  <div class="heat-cell" :class="'heat-' + heatLevel(v)">
+                    {{ v === null ? '—' : v + '%' }}
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -580,14 +582,8 @@ const areaPath = computed(() => {
 const HEATMAP_HOURS     = [8,10,12,14,16,18,20,22]
 const heatmapHourLabels = ['8am','10am','12pm','2pm','4pm','6pm','8pm','10pm']
 const DAY_LABELS        = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-
-const fallbackHeatmap = [
-  { day: 'Mon', values: [10,40,75,80,70,30,5,0] },
-  { day: 'Tue', values: [15,55,85,90,80,45,10,0] },
-  { day: 'Wed', values: [20,60,100,95,88,50,15,0] },
-  { day: 'Thu', values: [12,45,70,75,65,35,8,0] },
-  { day: 'Fri', values: [18,50,80,85,72,20,5,0] },
-]
+// Mon–Sun order for display (MySQL DAYOFWEEK: 1=Sun…7=Sat)
+const DISPLAY_DOWS      = [2,3,4,5,6,7,1] // Mon=2 … Sun=1
 
 const heatmapWeekLabel = computed(() => {
   if (!heatmapWeek.value.start) return 'this week'
@@ -596,20 +592,28 @@ const heatmapWeekLabel = computed(() => {
 })
 
 const heatmapRows = computed(() => {
-  if (!heatmapData.value.length) return fallbackHeatmap
+  // Build lookup from real data: lookup[dow][hour] = avg_pct
   const lookup = {}
   heatmapData.value.forEach(r => {
-    lookup[r.day_of_week] = lookup[r.day_of_week] || {}
+    if (!lookup[r.day_of_week]) lookup[r.day_of_week] = {}
     lookup[r.day_of_week][r.hour] = Math.round(r.avg_pct)
   })
-  const days = Object.keys(lookup).map(Number).sort((a,b) => a-b)
-  return days.map(dow => ({
+
+  // Always render all 7 days in Mon–Sun order.
+  // If a day has no data at all, all its cells are null → shows —
+  // If a day has some data but not for a specific hour, that cell is null → shows —
+  return DISPLAY_DOWS.map(dow => ({
     day: DAY_LABELS[dow - 1],
-    values: HEATMAP_HOURS.map(h => lookup[dow][h] ?? 0)
+    values: HEATMAP_HOURS.map(h => {
+      if (!lookup[dow]) return null            // whole day has no data
+      if (lookup[dow][h] === undefined) return null  // this hour has no data
+      return lookup[dow][h]
+    }),
   }))
 })
 
 function heatLevel(v) {
+  if (v === null || v === undefined) return 'empty'
   if (v >= 100) return 4
   if (v >= 80)  return 3
   if (v >= 50)  return 2

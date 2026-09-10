@@ -10,7 +10,8 @@
 
     <div class="content">
 
-      <div class="stat-grid">
+      <!-- ── Stat cards ───────────────────────────────────────────────────── -->
+      <div class="stat-grid" style="grid-template-columns: repeat(5, 1fr);">
         <div class="stat-card">
           <div class="stat-icon red"><i class="ti ti-alert-circle" /></div>
           <div class="stat-label">active alerts</div>
@@ -18,9 +19,15 @@
           <div class="stat-sub">unacknowledged</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon amber"><i class="ti ti-alert-triangle" /></div>
-          <div class="stat-label">overcrowding events</div>
+          <div class="stat-icon red"><i class="ti ti-users" /></div>
+          <div class="stat-label">overcrowding</div>
           <div class="stat-value">{{ overcrowdingCount }}</div>
+          <div class="stat-sub">active right now</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon amber"><i class="ti ti-alert-triangle" /></div>
+          <div class="stat-label">near capacity</div>
+          <div class="stat-value">{{ nearCapacityCount }}</div>
           <div class="stat-sub">active right now</div>
         </div>
         <div class="stat-card">
@@ -37,67 +44,48 @@
         </div>
       </div>
 
-      <div class="alerts-grid">
-
-        <div class="panel">
-          <div class="panel-header">
-            <span class="section-title">active alerts</span>
-            <span v-if="unacknowledgedCount > 0"
-                  class="section-link" style="cursor:pointer;"
-                  @click="acknowledgeAll">
-              acknowledge all <i class="ti ti-check" style="font-size:12px" />
-            </span>
-          </div>
-
-          <div v-if="activeAlerts.length === 0"
-               style="padding: 20px 0; font-size:13px; color:var(--color-text-muted); text-align:center;">
-            <i class="ti ti-circle-check" style="font-size:28px; display:block; margin-bottom:8px;" />
-            no active alerts
-          </div>
-
-          <div v-for="alert in activeAlerts" :key="alert.alert_id" class="alert-row">
-            <div class="alert-row-left">
-              <div class="alert-dot-large" :class="dotClass(alert.alert_type)"></div>
-              <div>
-                <div class="alert-row-title">{{ alert.message }}</div>
-                <div class="alert-row-meta">
-                  room {{ alert.room_id }} &nbsp;·&nbsp; {{ formatTime(alert.created_at) }}
-                </div>
-              </div>
-            </div>
-            <div class="alert-row-actions">
-              <button class="alert-btn-ack" @click="ackAlert(alert.alert_id)">
-                <i class="ti ti-check" /> acknowledge
-              </button>
-              <button class="alert-btn-del" @click="delAlert(alert.alert_id)">
-                <i class="ti ti-trash" />
-              </button>
-            </div>
-          </div>
+      <!-- ── Active alerts (full width now breakdown is gone) ─────────────── -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="section-title">active alerts</span>
+          <span v-if="unacknowledgedCount > 0"
+                class="section-link" style="cursor:pointer;"
+                @click="acknowledgeAll">
+            acknowledge all <i class="ti ti-check" style="font-size:12px" />
+          </span>
         </div>
 
-        <div class="panel">
-          <div class="panel-header">
-            <span class="section-title">breakdown</span>
-          </div>
-
-          <div class="breakdown-item" v-for="item in breakdown" :key="item.label">
-            <div class="breakdown-left">
-              <div class="feed-dot" :style="{ background: item.color }"></div>
-              <span class="breakdown-label">{{ item.label }}</span>
-            </div>
-            <div class="breakdown-right">
-              <div class="util-bar-wrap" style="width:80px;">
-                <div class="util-bar-fill"
-                     :style="{ width: item.pct + '%', background: item.color }"></div>
-              </div>
-              <span class="breakdown-count">{{ item.count }}</span>
-            </div>
-          </div>
+        <div v-if="activeAlerts.length === 0"
+             style="padding:20px 0; font-size:13px; color:var(--color-text-muted); text-align:center;">
+          <i class="ti ti-circle-check" style="font-size:28px; display:block; margin-bottom:8px;" />
+          no active alerts
         </div>
 
+        <div v-for="alert in activeAlerts" :key="alert.alert_id" class="alert-row">
+          <div class="alert-row-left">
+            <div class="alert-dot-large" :class="dotClass(alert.alert_type)"></div>
+            <div>
+              <div class="alert-row-title">{{ alert.message }}</div>
+              <div class="alert-row-meta">
+                <span class="room-badge" :class="typeBadge(alert.alert_type)" style="font-size:10px; margin-right:6px;">
+                  {{ typeLabel(alert.alert_type) }}
+                </span>
+                room {{ alert.room_id }} &nbsp;·&nbsp; {{ formatTime(alert.created_at) }}
+              </div>
+            </div>
+          </div>
+          <div class="alert-row-actions">
+            <button class="alert-btn-ack" @click="ackAlert(alert.alert_id)">
+              <i class="ti ti-check" /> acknowledge
+            </button>
+            <button class="alert-btn-del" @click="delAlert(alert.alert_id)">
+              <i class="ti ti-trash" />
+            </button>
+          </div>
+        </div>
       </div>
 
+      <!-- ── Alert history ─────────────────────────────────────────────────── -->
       <div class="panel">
         <div class="panel-header">
           <span class="section-title">alert history</span>
@@ -148,7 +136,7 @@
                    @click="ackAlert(alert.alert_id)"
                    style="margin-right:10px; cursor:pointer;" />
                 <i v-else
-                   class="ti ti-x" title="unacknowledge"
+                   class="ti ti-rotate" title="unacknowledge"
                    @click="unackAlert(alert.alert_id)"
                    style="margin-right:10px; cursor:pointer;" />
                 <i class="ti ti-trash" title="delete"
@@ -169,45 +157,42 @@ import { ref, computed } from 'vue'
 import { fetchAlerts, acknowledgeAlert, unacknowledgeAlert, deleteAlert } from '../api.js'
 import { usePolling } from '../other/usePolling.js'
 
-const alerts = ref([])
+const alerts      = ref([])
 const activeFilter = ref('all')
 
 const filters = [
-  { key: 'all',               label: 'all' },
-  { key: 'active',            label: 'active' },
-  { key: 'acknowledged',      label: 'acknowledged' },
-  { key: 'overcrowding',      label: 'overcrowding' },
-  { key: 'near_capacity',     label: 'near capacity' },
+  { key: 'all',                label: 'all' },
+  { key: 'active',             label: 'active' },
+  { key: 'acknowledged',       label: 'acknowledged' },
+  { key: 'overcrowding',       label: 'overcrowding' },
+  { key: 'near_capacity',      label: 'near capacity' },
   { key: 'system_malfunction', label: 'system' },
 ]
+
+// ── Computed lists ─────────────────────────────────────────────────────────
 
 const activeAlerts = computed(() =>
   alerts.value.filter(a => !a.is_resolved)
 )
 
 const filteredAlerts = computed(() => {
-  if (activeFilter.value === 'all')          return alerts.value
-  if (activeFilter.value === 'active')       return alerts.value.filter(a => !a.is_resolved)
-  if (activeFilter.value === 'acknowledged') return alerts.value.filter(a => a.is_resolved)
-  return alerts.value.filter(a => a.alert_type === activeFilter.value)
+  const key = activeFilter.value
+  if (key === 'all')          return alerts.value
+  if (key === 'active')       return alerts.value.filter(a => !a.is_resolved)
+  if (key === 'acknowledged') return alerts.value.filter(a =>  a.is_resolved)
+  // Type filters — match exactly against the normalised alert_type
+  return alerts.value.filter(a => a.alert_type === key)
 })
+
+// ── Stat counts ────────────────────────────────────────────────────────────
 
 const unacknowledgedCount = computed(() => alerts.value.filter(a => !a.is_resolved).length)
-const acknowledgedCount   = computed(() => alerts.value.filter(a => a.is_resolved).length)
-const overcrowdingCount   = computed(() => alerts.value.filter(a => a.alert_type === 'overcrowding' && !a.is_resolved).length)
+const acknowledgedCount   = computed(() => alerts.value.filter(a =>  a.is_resolved).length)
+const overcrowdingCount   = computed(() => alerts.value.filter(a => a.alert_type === 'overcrowding'       && !a.is_resolved).length)
+const nearCapacityCount   = computed(() => alerts.value.filter(a => a.alert_type === 'near_capacity'      && !a.is_resolved).length)
 const systemCount         = computed(() => alerts.value.filter(a => a.alert_type === 'system_malfunction' && !a.is_resolved).length)
 
-const breakdown = computed(() => {
-  const total = activeAlerts.value.length || 1
-  const overcrowding   = activeAlerts.value.filter(a => a.alert_type === 'overcrowding').length
-  const nearCapacity   = activeAlerts.value.filter(a => a.alert_type === 'near_capacity').length
-  const system         = activeAlerts.value.filter(a => a.alert_type === 'system_malfunction').length
-  return [
-    { label: 'overcrowding',  count: overcrowding, color: 'var(--color-danger)',  pct: Math.round(overcrowding / total * 100) },
-    { label: 'near capacity', count: nearCapacity, color: 'var(--color-warning)', pct: Math.round(nearCapacity / total * 100) },
-    { label: 'system',        count: system,       color: 'var(--color-accent)',  pct: Math.round(system / total * 100) },
-  ]
-})
+// ── Helpers ────────────────────────────────────────────────────────────────
 
 function formatTime(ts) {
   if (!ts) return '--'
@@ -232,8 +217,10 @@ function typeLabel(type) {
   if (type === 'overcrowding')       return 'overcrowding'
   if (type === 'near_capacity')      return 'near capacity'
   if (type === 'system_malfunction') return 'system'
-  return type
+  return type ?? 'unknown'
 }
+
+// ── Actions ────────────────────────────────────────────────────────────────
 
 async function ackAlert(id) {
   try { await acknowledgeAlert(id); await refresh() }
@@ -258,11 +245,21 @@ async function acknowledgeAll() {
   } catch (err) { console.warn(err) }
 }
 
+// ── Data fetch ─────────────────────────────────────────────────────────────
+// Normalise alert_type to lowercase + trimmed so filter comparisons
+// always work regardless of how the DB stores the value.
+
 async function refresh() {
   try {
     const data = await fetchAlerts()
-    alerts.value = data.map(a => ({ ...a, is_resolved: Boolean(a.is_resolved) }))
-  } catch (err) { console.warn('Alerts refresh failed:', err.message) }
+    alerts.value = data.map(a => ({
+      ...a,
+      is_resolved: Boolean(a.is_resolved),
+      alert_type:  (a.alert_type ?? '').toLowerCase().trim(),
+    }))
+  } catch (err) {
+    console.warn('Alerts refresh failed:', err.message)
+  }
 }
 
 usePolling(refresh, 10000)

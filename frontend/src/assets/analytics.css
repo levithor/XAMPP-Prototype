@@ -588,3 +588,14 @@ html.dark .forecast-select {
   border-color: rgba(255,255,255,0.1);
   color-scheme: dark;
 }
+/* No-data heatmap cell */
+.heat-empty {
+  background: transparent;
+  color: var(--color-text-muted);
+  border: 0.5px dashed var(--color-border);
+}
+
+html.dark .heat-empty {
+  background: transparent;
+  border-color: rgba(255,255,255,0.06);
+}
