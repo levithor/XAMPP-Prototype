@@ -4,8 +4,7 @@ const {
   resolveCameraOfflineAlert,
 } = require('../services/alertService');
 
-// Status is computed from last_communication — never stored manually.
-// A camera is online if it sent data within the last 5 minutes.
+
 const COMPUTED_STATUS = `
   CASE
     WHEN last_communication IS NULL
@@ -16,7 +15,8 @@ const COMPUTED_STATUS = `
   END
 `;
 
-// Shared SELECT used by both getCameras and getCameraById
+
+// ── CAMERA SELECT FIELDS — add new columns HERE ──
 const CAMERA_SELECT = `
   SELECT
     camera_id,
@@ -34,8 +34,7 @@ exports.getCameras = async (req, res) => {
   try {
     const [cameras] = await db.query(`${CAMERA_SELECT} ORDER BY created_at DESC`);
 
-    // After fetching, check each camera's status and fire/resolve
-    // offline alerts so the alerts page stays up to date automatically.
+
     for (const cam of cameras) {
       if (cam.status === 'offline') {
         await createCameraOfflineAlert(cam.camera_id, cam.camera_name, cam.assigned_room_id);
@@ -50,7 +49,7 @@ exports.getCameras = async (req, res) => {
   }
 };
 
-// GET /api/cameras/:id
+
 exports.getCameraById = async (req, res) => {
   try {
     const [rows] = await db.query(
@@ -64,7 +63,7 @@ exports.getCameraById = async (req, res) => {
   }
 };
 
-// POST /api/cameras
+
 exports.createCamera = async (req, res) => {
   try {
     const { camera_name, rtsp_url, assigned_room_id } = req.body;
@@ -81,7 +80,7 @@ exports.createCamera = async (req, res) => {
   }
 };
 
-// PUT /api/cameras/:id
+
 exports.updateCamera = async (req, res) => {
   try {
     const { camera_name, rtsp_url, assigned_room_id } = req.body;
@@ -101,7 +100,7 @@ exports.updateCamera = async (req, res) => {
   }
 };
 
-// DELETE /api/cameras/:id
+
 exports.deleteCamera = async (req, res) => {
   try {
     await db.query(
@@ -119,7 +118,7 @@ exports.deleteCamera = async (req, res) => {
   }
 };
 
-// PATCH /api/cameras/:id/assign
+
 exports.assignRoom = async (req, res) => {
   const { assigned_room_id } = req.body;
   const [result] = await db.query(

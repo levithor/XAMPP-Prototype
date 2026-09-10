@@ -345,7 +345,7 @@
         <div class="panel">
           <div class="panel-header">
             <span class="section-title">weekly peak hours heatmap</span>
-            <span class="date-badge">4-week window{{ selectedRoomId ? ' · ' + selectedRoomLabel : '' }}</span>
+            <span class="date-badge">{{ heatmapWeekLabel }}{{ selectedRoomId ? ' · ' + selectedRoomLabel : '' }}</span>
           </div>
           <table class="heatmap-table">
             <thead>
@@ -473,7 +473,8 @@ const hourOptions = Array.from({ length: 24 }, (_, h) => ({
 }))
 
 const hourlyTrend = ref([])
-const heatmapData = ref([])
+const heatmapData  = ref([])
+const heatmapWeek  = ref({ start: '', end: '' })
 const utilization = ref([])
 const loading     = ref(false)
 const alerts      = ref([])
@@ -495,7 +496,8 @@ async function refresh() {
       fetchAlerts().catch(() => []),
     ])
     hourlyTrend.value = trend
-    heatmapData.value = heatmap
+    heatmapData.value = heatmap.rows ?? heatmap
+    heatmapWeek.value = { start: heatmap.week_start ?? '', end: heatmap.week_end ?? '' }
     utilization.value = util
     alerts.value      = alertList
   } catch (err) {
@@ -586,6 +588,12 @@ const fallbackHeatmap = [
   { day: 'Thu', values: [12,45,70,75,65,35,8,0] },
   { day: 'Fri', values: [18,50,80,85,72,20,5,0] },
 ]
+
+const heatmapWeekLabel = computed(() => {
+  if (!heatmapWeek.value.start) return 'this week'
+  const fmt = d => new Date(d + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' })
+  return `${fmt(heatmapWeek.value.start)} – ${fmt(heatmapWeek.value.end)}`
+})
 
 const heatmapRows = computed(() => {
   if (!heatmapData.value.length) return fallbackHeatmap
