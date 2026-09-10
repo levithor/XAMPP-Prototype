@@ -135,7 +135,10 @@
                 <i class="ti ti-brain" /> forecast
               </button>
             </div>
-            <span class="date-badge">{{ selectedLabel }}{{ selectedRoomId ? ' · ' + selectedRoomLabel : '' }}</span>
+            <!-- date badge only shown on trend tab -->
+            <span v-if="chartTab === 'trend'" class="date-badge">
+              {{ selectedLabel }}{{ selectedRoomId ? ' · ' + selectedRoomLabel : '' }}
+            </span>
           </div>
 
           <!-- ── TREND TAB ── -->
@@ -188,22 +191,20 @@
                 <i class="ti ti-calendar" style="font-size:14px;" />
                 <span>forecast date:</span>
                 <input type="date" v-model="forecastDate" :min="tomorrowStr"
-                       style="font-size:12px; font-family:inherit; border:0.5px solid var(--color-border);
-                              border-radius:8px; padding:5px 9px; outline:none; background:#fafaf8;" />
+                       class="forecast-date-input" />
               </div>
               <!-- Hour range -->
               <div style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--color-text-secondary);">
                 <i class="ti ti-clock" style="font-size:14px;" />
                 <span>hours:</span>
-                <select v-model="forecastHourFrom" class="time-select" style="font-size:12px; padding:5px 8px; width:80px;">
+                <select v-model="forecastHourFrom" class="time-select forecast-select">
                   <option v-for="h in hourOptions" :key="h.v" :value="h.v">{{ h.l }}</option>
                 </select>
                 <span>–</span>
-                <select v-model="forecastHourTo" class="time-select" style="font-size:12px; padding:5px 8px; width:80px;">
+                <select v-model="forecastHourTo" class="time-select forecast-select">
                   <option v-for="h in hourOptions" :key="h.v" :value="h.v" :disabled="h.v <= forecastHourFrom">{{ h.l }}</option>
                 </select>
-                <button @click="runForecast" class="apply-btn"
-                        style="padding:5px 14px; font-size:12px; border-radius:20px; width:auto;">
+                <button @click="runForecast" class="forecast-predict-btn">
                   <i class="ti ti-refresh" /> predict
                 </button>
               </div>
@@ -272,23 +273,16 @@
             </svg>
 
             <!-- Summary row -->
-            <div v-if="forecastPoints.length > 0"
-                 style="display:flex; gap:20px; margin-top:10px; padding-top:10px;
-                        border-top:0.5px solid var(--color-border); flex-wrap:wrap;">
-              <div style="font-size:11px; color:var(--color-text-muted);">
-                <span style="font-weight:500; color:var(--color-text-primary);">
-                  peak: {{ forecastPeak.pct }}%
-                </span>
-                at {{ forecastHourLabel(forecastPeak.hour) }}
+            <div v-if="forecastPoints.length > 0" class="forecast-summary">
+              <div class="forecast-summary-item">
+                <span class="forecast-summary-value">peak: {{ forecastPeak.pct }}%</span>
+                <span class="forecast-summary-label"> at {{ forecastHourLabel(forecastPeak.hour) }}</span>
               </div>
-              <div style="font-size:11px; color:var(--color-text-muted);">
-                <span style="font-weight:500; color:var(--color-text-primary);">
-                  avg: {{ forecastAvg }}%
-                </span>
-                over selected window
+              <div class="forecast-summary-item">
+                <span class="forecast-summary-value">avg: {{ forecastAvg }}%</span>
+                <span class="forecast-summary-label"> over selected window</span>
               </div>
-              <div v-if="forecastOverCapacity.length > 0"
-                   style="font-size:11px; color:var(--color-danger); font-weight:500;">
+              <div v-if="forecastOverCapacity.length > 0" class="forecast-summary-warning">
                 <i class="ti ti-alert-triangle" style="font-size:12px;" />
                 over-capacity predicted at {{ forecastOverCapacity.map(p => forecastHourLabel(p.hour)).join(', ') }}
               </div>
@@ -637,10 +631,9 @@ function formatTime(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-// ── FORECAST ─────────────────────────────────────────────────────────────────
-const chartTab       = ref('trend')   // 'trend' | 'forecast'
+const chartTab       = ref('trend')   
 const forecastLoading = ref(false)
-const forecastData   = ref([])        // [{ hour, predicted_pct, lower_pct, upper_pct }]
+const forecastData   = ref([])        
 
 const tomorrowStr = computed(() => {
   const d = new Date(); d.setDate(d.getDate() + 1)
@@ -668,7 +661,6 @@ async function runForecast() {
   }
 }
 
-// Run forecast automatically when tab is switched to it
 watch(chartTab, val => { if (val === 'forecast') runForecast() })
 
 // x-axis helpers for forecast
@@ -708,7 +700,6 @@ const forecastLinePath = computed(() =>
   forecastPoints.value.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
 )
 
-// Confidence band: upper line forward then lower line backward = closed shape
 const forecastBandPath = computed(() => {
   const data = forecastData.value
   if (data.length < 2) return ''
