@@ -1,8 +1,10 @@
 const db = require('../config/db');
 
+// ── Occupancy threshold alerts ────────────────────────────────────────────────
+// Called after every new occupancy log is inserted.
+
 async function checkAndCreateAlerts(room_id, occupancy_count) {
   try {
-
     const [rooms] = await db.query(
       'SELECT capacity_limit, occupancy_threshold, room_name FROM rooms WHERE room_id = ?',
       [room_id]
@@ -11,9 +13,8 @@ async function checkAndCreateAlerts(room_id, occupancy_count) {
 
     const { capacity_limit, occupancy_threshold, room_name } = rooms[0];
 
-    const isOverCapacity  = occupancy_count >  capacity_limit;
-    const isNearCapacity  = occupancy_count >= occupancy_threshold && !isOverCapacity;
-    const isClear         = occupancy_count <  occupancy_threshold;
+    const isOverCapacity = occupancy_count >  capacity_limit;
+    const isNearCapacity = occupancy_count >= occupancy_threshold && !isOverCapacity;
 
     if (isOverCapacity) {
       await createIfNotExists(
@@ -22,7 +23,6 @@ async function checkAndCreateAlerts(room_id, occupancy_count) {
         `${room_name} is over capacity — ${occupancy_count} of ${capacity_limit} max`
       );
     } else {
-      // Count dropped back to or below capacity — auto-resolve any open overcrowding alert
       await autoResolve(room_id, 'overcrowding');
     }
 
@@ -37,9 +37,45 @@ async function checkAndCreateAlerts(room_id, occupancy_count) {
     }
 
   } catch (err) {
-    console.error('alertService error:', err.message);
+    console.error('alertService.checkAndCreateAlerts error:', err.message);
   }
 }
+
+// ── Camera offline / online alerts ───────────────────────────────────────────
+// Called from cameraController whenever the computed status changes.
+
+// Camera just went offline — create an unresolved system_malfunction alert
+// on whichever room the camera is assigned to (if any).
+async function createCameraOfflineAlert(camera_id, camera_name, assigned_room_id) {
+  try {
+    // Use room_id = 1 as a sentinel when the camera has no room.
+    // If your schema requires a valid FK, only create the alert when assigned.
+    if (!assigned_room_id) {
+      console.warn(`Camera ${camera_name} went offline but has no room — skipping alert`);
+      return;
+    }
+
+    await createIfNotExists(
+      assigned_room_id,
+      'system_malfunction',
+      `Camera "${camera_name}" has gone offline — no data received in the last 5 minutes`
+    );
+  } catch (err) {
+    console.error('alertService.createCameraOfflineAlert error:', err.message);
+  }
+}
+
+// Camera came back online — auto-resolve any open system_malfunction alert for its room
+async function resolveCameraOfflineAlert(assigned_room_id) {
+  try {
+    if (!assigned_room_id) return;
+    await autoResolve(assigned_room_id, 'system_malfunction');
+  } catch (err) {
+    console.error('alertService.resolveCameraOfflineAlert error:', err.message);
+  }
+}
+
+// ── Shared helpers ────────────────────────────────────────────────────────────
 
 async function createIfNotExists(room_id, alert_type, message) {
   const [existing] = await db.query(
@@ -48,7 +84,7 @@ async function createIfNotExists(room_id, alert_type, message) {
      LIMIT 1`,
     [room_id, alert_type]
   );
-  if (existing.length > 0) return; 
+  if (existing.length > 0) return;
 
   await db.query(
     `INSERT INTO alerts (room_id, alert_type, message) VALUES (?, ?, ?)`,
@@ -65,4 +101,8 @@ async function autoResolve(room_id, alert_type) {
   );
 }
 
-module.exports = { checkAndCreateAlerts };
+module.exports = {
+  checkAndCreateAlerts,
+  createCameraOfflineAlert,
+  resolveCameraOfflineAlert,
+};

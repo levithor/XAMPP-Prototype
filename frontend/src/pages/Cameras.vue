@@ -24,13 +24,13 @@
           <div class="stat-icon green"><i class="ti ti-wifi" /></div>
           <div class="stat-label">online</div>
           <div class="stat-value">{{ onlineCount }}</div>
-          <div class="stat-sub">currently active</div>
+          <div class="stat-sub">active in last 5 min</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon red"><i class="ti ti-wifi-off" /></div>
           <div class="stat-label">offline</div>
           <div class="stat-value">{{ offlineCount }}</div>
-          <div class="stat-sub">not responding</div>
+          <div class="stat-sub">no data in 5+ min</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon amber"><i class="ti ti-door" /></div>
@@ -55,14 +55,14 @@
           class="room-card" :class="accentFor(cam)">
           <div class="room-card-header">
             <div class="room-name">{{ cam.camera_name }}</div>
-            <span class="room-badge" :class="statusBadge(cam)">{{ statusLabel(cam) }}</span>
+            <span class="room-badge" :class="statusBadge(cam)">{{ cam.status }}</span>
           </div>
           <div class="room-loc">
             {{ roomName(cam.assigned_room_id) || 'unassigned' }}
           </div>
           <div class="cam-ip-row">
-            <i class="ti ti-network" style="font-size:13px; color:var(--color-text-muted);" />
-            <span class="cam-ip">{{ cam.ip_address || 'no ip address' }}</span>
+            <i class="ti ti-cast" style="font-size:13px; color:var(--color-text-muted);" />
+            <span class="cam-ip">{{ cam.rtsp_url || 'no rtsp url' }}</span>
           </div>
           <div class="room-card-footer">
             <span>last seen: {{ lastSeen(cam.last_communication) }}</span>
@@ -89,7 +89,7 @@
           <thead>
             <tr>
               <th>camera name</th>
-              <th>ip address</th>
+              <th>rtsp url</th>
               <th>assigned room</th>
               <th>status</th>
               <th>last communication</th>
@@ -104,10 +104,10 @@
             </tr>
             <tr v-for="cam in cameras" :key="'tr-' + cam.camera_id">
               <td>{{ cam.camera_name }}</td>
-              <td class="muted">{{ cam.ip_address || '--' }}</td>
+              <td class="muted">{{ cam.rtsp_url || '--' }}</td>
               <td class="muted">{{ roomName(cam.assigned_room_id) || 'unassigned' }}</td>
               <td>
-                <span class="room-badge" :class="statusBadge(cam)">{{ statusLabel(cam) }}</span>
+                <span class="room-badge" :class="statusBadge(cam)">{{ cam.status }}</span>
               </td>
               <td class="muted">{{ lastSeen(cam.last_communication) }}</td>
               <td class="row-actions">
@@ -121,6 +121,7 @@
 
     </div>
 
+    <!-- add / edit modal HERE HERE HERE HERE -->
     <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
       <div class="modal-box">
         <div class="modal-header">
@@ -128,21 +129,15 @@
           <i class="ti ti-x" @click="closeModal" style="cursor:pointer; color:var(--color-text-muted);" />
         </div>
 
+        <!-- ── add new inputs here HERE HERE HERE HERE── -->
         <div class="modal-fields">
           <div class="modal-field">
             <label>camera name</label>
             <input v-model="form.camera_name" placeholder="e.g. CAM-301" />
           </div>
           <div class="modal-field">
-            <label>ip address</label>
-            <input v-model="form.ip_address" placeholder="e.g. 192.168.1.101" />
-          </div>
-          <div class="modal-field">
-            <label>status</label>
-            <select v-model="form.status" class="modal-select">
-              <option value="online">online</option>
-              <option value="offline">offline</option>
-            </select>
+            <label>rtsp url</label>
+            <input v-model="form.rtsp_url" placeholder="e.g. rtsp://192.168.1.101:554/stream" />
           </div>
           <div class="modal-field">
             <label>assign to room</label>
@@ -174,17 +169,16 @@ import { ref, computed } from 'vue'
 import { fetchCameras, addCamera, updateCamera, deleteCamera, fetchRooms } from '../api.js'
 import { usePolling } from '../other/usePolling.js'
 
-const cameras = ref([])
-const rooms   = ref([])
-const activeFilter = ref('all')
-const showModal    = ref(false)
+const cameras       = ref([])
+const rooms         = ref([])
+const activeFilter  = ref('all')
+const showModal     = ref(false)
 const editingCamera = ref(null)
-const modalError   = ref('')
+const modalError    = ref('')
 
 const form = ref({
   camera_name:      '',
-  rtsp_url:       '',
-  status:           'online',
+  rtsp_url:         '',
   assigned_room_id: null,
 })
 
@@ -195,8 +189,8 @@ const filters = [
   { key: 'unassigned', label: 'unassigned' },
 ]
 
-const onlineCount    = computed(() => cameras.value.filter(c => c.status === 'online').length)
-const offlineCount   = computed(() => cameras.value.filter(c => c.status === 'offline').length)
+const onlineCount     = computed(() => cameras.value.filter(c => c.status === 'online').length)
+const offlineCount    = computed(() => cameras.value.filter(c => c.status === 'offline').length)
 const unassignedCount = computed(() => cameras.value.filter(c => !c.assigned_room_id).length)
 
 const subtitle = computed(() =>
@@ -208,10 +202,6 @@ const filteredCameras = computed(() => {
   if (activeFilter.value === 'unassigned') return cameras.value.filter(c => !c.assigned_room_id)
   return cameras.value.filter(c => c.status === activeFilter.value)
 })
-
-function statusLabel(cam) {
-  return cam.status === 'online' ? 'online' : 'offline'
-}
 
 function statusBadge(cam) {
   return cam.status === 'online' ? 'badge-success' : 'badge-danger'
@@ -229,11 +219,11 @@ function roomName(roomId) {
 function lastSeen(ts) {
   if (!ts) return 'never'
   const mins = Math.round((Date.now() - new Date(ts).getTime()) / 60000)
-  if (mins < 1)  return 'just now'
+  if (mins < 1)   return 'just now'
   if (mins === 1) return '1 min ago'
-  if (mins < 60) return `${mins} min ago`
+  if (mins < 60)  return `${mins} min ago`
   const hrs = Math.round(mins / 60)
-  if (hrs < 24)  return `${hrs}h ago`
+  if (hrs < 24)   return `${hrs}h ago`
   return new Date(ts).toLocaleDateString()
 }
 
@@ -254,7 +244,7 @@ usePolling(refresh, 10000)
 
 function openAddModal() {
   editingCamera.value = null
-  form.value = { camera_name: '', rtsp_url: '', status: 'online', assigned_room_id: null }
+  form.value = { camera_name: '', rtsp_url: '', assigned_room_id: null }
   modalError.value = ''
   showModal.value = true
 }
@@ -263,8 +253,7 @@ function openEditModal(cam) {
   editingCamera.value = cam
   form.value = {
     camera_name:      cam.camera_name      || '',
-    rtsp_url:       cam.rtsp_url       || '',
-    status:           cam.status           || 'online',
+    rtsp_url:         cam.rtsp_url         || '',
     assigned_room_id: cam.assigned_room_id ?? null,
   }
   modalError.value = ''
@@ -283,20 +272,15 @@ async function submitModal() {
     return
   }
   try {
+    const payload = {
+      camera_name:      form.value.camera_name,
+      rtsp_url:         form.value.rtsp_url,
+      assigned_room_id: form.value.assigned_room_id,
+    }
     if (editingCamera.value) {
-      await updateCamera(editingCamera.value.camera_id, {
-        camera_name:      form.value.camera_name,
-        rtsp_url:       form.value.rtsp_url,
-        status:           form.value.status,
-        assigned_room_id: form.value.assigned_room_id,
-      })
+      await updateCamera(editingCamera.value.camera_id, payload)
     } else {
-      await addCamera({
-        camera_name:      form.value.camera_name,
-        rtsp_url:       form.value.rtsp_url,
-        status:           form.value.status,
-        assigned_room_id: form.value.assigned_room_id,
-      })
+      await addCamera(payload)
     }
     closeModal()
     await refresh()
@@ -314,4 +298,4 @@ async function confirmDelete(cam) {
 
 <style>
 @import '../assets/cameras.css';
-</style>1
+</style>

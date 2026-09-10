@@ -21,13 +21,13 @@
           <div class="stat-icon amber"><i class="ti ti-alert-triangle" /></div>
           <div class="stat-label">overcrowding events</div>
           <div class="stat-value">{{ overcrowdingCount }}</div>
-          <div class="stat-sub">total today</div>
+          <div class="stat-sub">active right now</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon amber"><i class="ti ti-clock" /></div>
-          <div class="stat-label">unusual activity</div>
-          <div class="stat-value">{{ unusualCount }}</div>
-          <div class="stat-sub">outside normal hours</div>
+          <div class="stat-icon blue"><i class="ti ti-camera-off" /></div>
+          <div class="stat-label">system alerts</div>
+          <div class="stat-value">{{ systemCount }}</div>
+          <div class="stat-sub">camera / system issues</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon green"><i class="ti ti-circle-check" /></div>
@@ -101,7 +101,7 @@
       <div class="panel">
         <div class="panel-header">
           <span class="section-title">alert history</span>
-          <div style="display:flex; gap:8px;">
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <div v-for="f in filters" :key="f.key"
                  class="filter-chip" :class="{ active: activeFilter === f.key }"
                  @click="activeFilter = f.key"
@@ -173,11 +173,12 @@ const alerts = ref([])
 const activeFilter = ref('all')
 
 const filters = [
-  { key: 'all',            label: 'all' },
-  { key: 'active',         label: 'active' },
-  { key: 'acknowledged',   label: 'acknowledged' },
-  { key: 'overcrowding',   label: 'overcrowding' },
-  { key: 'unusual_activity', label: 'unusual activity' },
+  { key: 'all',               label: 'all' },
+  { key: 'active',            label: 'active' },
+  { key: 'acknowledged',      label: 'acknowledged' },
+  { key: 'overcrowding',      label: 'overcrowding' },
+  { key: 'near_capacity',     label: 'near capacity' },
+  { key: 'system_malfunction', label: 'system' },
 ]
 
 const activeAlerts = computed(() =>
@@ -193,18 +194,18 @@ const filteredAlerts = computed(() => {
 
 const unacknowledgedCount = computed(() => alerts.value.filter(a => !a.is_resolved).length)
 const acknowledgedCount   = computed(() => alerts.value.filter(a => a.is_resolved).length)
-const overcrowdingCount = computed(() => alerts.value.filter(a => a.alert_type === 'overcrowding' && !a.is_resolved).length)
-const unusualCount      = computed(() => alerts.value.filter(a => a.alert_type === 'unusual_activity' && !a.is_resolved).length)
+const overcrowdingCount   = computed(() => alerts.value.filter(a => a.alert_type === 'overcrowding' && !a.is_resolved).length)
+const systemCount         = computed(() => alerts.value.filter(a => a.alert_type === 'system_malfunction' && !a.is_resolved).length)
 
 const breakdown = computed(() => {
-  const activeOvercrowding = activeAlerts.value.filter(a => a.alert_type === 'overcrowding').length
-  const activeUnusual      = activeAlerts.value.filter(a => a.alert_type === 'unusual_activity').length
-  const activeSystem       = activeAlerts.value.filter(a => a.alert_type === 'system').length
   const total = activeAlerts.value.length || 1
+  const overcrowding   = activeAlerts.value.filter(a => a.alert_type === 'overcrowding').length
+  const nearCapacity   = activeAlerts.value.filter(a => a.alert_type === 'near_capacity').length
+  const system         = activeAlerts.value.filter(a => a.alert_type === 'system_malfunction').length
   return [
-    { label: 'overcrowding',     count: activeOvercrowding, color: 'var(--color-danger)',  pct: Math.round(activeOvercrowding / total * 100) },
-    { label: 'unusual activity', count: activeUnusual,      color: 'var(--color-warning)', pct: Math.round(activeUnusual / total * 100) },
-    { label: 'system',           count: activeSystem,       color: 'var(--color-accent)',  pct: Math.round(activeSystem / total * 100) },
+    { label: 'overcrowding',  count: overcrowding, color: 'var(--color-danger)',  pct: Math.round(overcrowding / total * 100) },
+    { label: 'near capacity', count: nearCapacity, color: 'var(--color-warning)', pct: Math.round(nearCapacity / total * 100) },
+    { label: 'system',        count: system,       color: 'var(--color-accent)',  pct: Math.round(system / total * 100) },
   ]
 })
 
@@ -214,43 +215,40 @@ function formatTime(ts) {
 }
 
 function dotClass(type) {
-  if (type === 'overcrowding')    return 'dot-danger'
-  if (type === 'unusual_activity') return 'dot-warning'
+  if (type === 'overcrowding')       return 'dot-danger'
+  if (type === 'near_capacity')      return 'dot-warning'
+  if (type === 'system_malfunction') return 'dot-info'
   return 'dot-info'
 }
 
 function typeBadge(type) {
-  if (type === 'overcrowding')    return 'badge-danger'
-  if (type === 'unusual_activity') return 'badge-warning'
+  if (type === 'overcrowding')       return 'badge-danger'
+  if (type === 'near_capacity')      return 'badge-warning'
+  if (type === 'system_malfunction') return 'badge-success'
   return 'badge-success'
 }
 
 function typeLabel(type) {
-  if (type === 'overcrowding')    return 'overcrowding'
-  if (type === 'unusual_activity') return 'unusual activity'
-  return 'system'
+  if (type === 'overcrowding')       return 'overcrowding'
+  if (type === 'near_capacity')      return 'near capacity'
+  if (type === 'system_malfunction') return 'system'
+  return type
 }
 
 async function ackAlert(id) {
-  try {
-    await acknowledgeAlert(id);
-    await refresh()
-  } catch (err) { console.warn(err) }
+  try { await acknowledgeAlert(id); await refresh() }
+  catch (err) { console.warn(err) }
 }
 
 async function unackAlert(id) {
-  try {
-    await unacknowledgeAlert(id);
-    await refresh()
-  } catch (err) { console.warn(err) }
+  try { await unacknowledgeAlert(id); await refresh() }
+  catch (err) { console.warn(err) }
 }
 
 async function delAlert(id) {
   if (!confirm('delete this alert from history?')) return
-  try {
-    await deleteAlert(id);
-    await refresh()
-  } catch (err) { console.warn(err) }
+  try { await deleteAlert(id); await refresh() }
+  catch (err) { console.warn(err) }
 }
 
 async function acknowledgeAll() {

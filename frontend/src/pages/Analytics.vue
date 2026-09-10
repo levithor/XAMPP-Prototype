@@ -14,7 +14,7 @@
           <i class="ti ti-chevron-down" style="font-size:12px; margin-left:2px;" />
         </div>
 
-        <!-- Room dropdown -->
+        
         <div v-if="roomPickerOpen" class="room-dropdown" @click.stop>
           <div class="room-option"
                :class="{ active: selectedRoomId === null }"
@@ -30,14 +30,14 @@
           </div>
         </div>
 
-        <!-- Date picker pill -->
+        
         <div class="filter-pill date-pill" @click.stop="togglePicker">
           <i class="ti ti-calendar" />
           {{ selectedLabel }}
           <i class="ti ti-chevron-down" style="font-size:12px; margin-left:2px;" />
         </div>
 
-        <!-- Date dropdown -->
+        
         <div v-if="pickerOpen" class="date-dropdown" @click.stop>
           <div class="preset-row">
             <button v-for="p in presets" :key="p.key"
@@ -123,7 +123,7 @@
       <div class="analytics-grid">
 
         <div class="panel">
-          <!-- TAB SWITCHER -->
+          
           <div class="panel-header" style="margin-bottom:0;">
             <div class="chart-tabs">
               <button class="chart-tab" :class="{ active: chartTab === 'trend' }"
@@ -135,20 +135,19 @@
                 <i class="ti ti-brain" /> forecast
               </button>
             </div>
-            <!-- date badge only shown on trend tab -->
+            
             <span v-if="chartTab === 'trend'" class="date-badge">
               {{ selectedLabel }}{{ selectedRoomId ? ' · ' + selectedRoomLabel : '' }}
             </span>
           </div>
 
-          <!-- ── TREND TAB ── -->
           <template v-if="chartTab === 'trend'">
             <div class="chart-legend" style="margin-top:14px;">
               <div class="legend-item"><span class="legend-swatch"></span> avg occupancy</div>
               <div class="legend-item"><span class="legend-swatch dashed"></span> capacity limit (80%)</div>
             </div>
             <div v-if="loading" class="chart-placeholder">loading…</div>
-            <svg v-else viewBox="0 0 700 280" style="width:100%; height:260px;">
+            <svg v-else viewBox="0 0 700 280" style="width:100%; height:320px;">
               <g stroke="var(--color-border)" stroke-width="0.5">
                 <line v-for="(pct,i) in [100,80,60,40,20,0]" :key="pct"
                       x1="40" :y1="20 + i*42" x2="690" :y2="20 + i*42" />
@@ -183,7 +182,6 @@
             </svg>
           </template>
 
-          <!-- ── FORECAST TAB ── -->
           <template v-else>
             <div style="display:flex; align-items:center; gap:16px; margin-top:14px; margin-bottom:12px; flex-wrap:wrap;">
               <!-- Forecast date picker -->
@@ -193,7 +191,7 @@
                 <input type="date" v-model="forecastDate" :min="tomorrowStr"
                        class="forecast-date-input" />
               </div>
-              <!-- Hour range -->
+              
               <div style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--color-text-secondary);">
                 <i class="ti ti-clock" style="font-size:14px;" />
                 <span>hours:</span>
@@ -210,7 +208,7 @@
               </div>
             </div>
 
-            <!-- Legend -->
+           
             <div class="chart-legend">
               <div class="legend-item">
                 <span style="display:inline-block;width:14px;height:3px;background:var(--color-accent);border-radius:2px;"></span>
@@ -233,7 +231,7 @@
               <span style="font-size:11px; margin-top:4px; display:block;">at least a few days of occupancy logs are needed.</span>
             </div>
             <svg v-else viewBox="0 0 700 280" style="width:100%; height:260px;">
-              <!-- gridlines -->
+              
               <g stroke="var(--color-border)" stroke-width="0.5">
                 <line v-for="(pct,i) in [100,80,60,40,20,0]" :key="pct"
                       x1="40" :y1="20 + i*42" x2="690" :y2="20 + i*42" />
@@ -242,7 +240,7 @@
                 <line x1="40" y1="20" x2="40" y2="230" />
                 <line x1="40" y1="230" x2="690" y2="230" />
               </g>
-              <!-- y labels -->
+              
               <g font-size="10" fill="var(--color-text-muted)" font-family="-apple-system,sans-serif">
                 <text x="32" y="24"  text-anchor="end">100%</text>
                 <text x="32" y="66"  text-anchor="end">80%</text>
@@ -251,28 +249,28 @@
                 <text x="32" y="192" text-anchor="end">20%</text>
                 <text x="32" y="234" text-anchor="end">0%</text>
               </g>
-              <!-- x labels -->
+              
               <g font-size="10" fill="var(--color-text-muted)" font-family="-apple-system,sans-serif" text-anchor="middle">
                 <text v-for="(lbl, i) in forecastXLabels" :key="lbl" :x="forecastXPos(i)" y="250">{{ lbl }}</text>
               </g>
-              <!-- 80% capacity dashed line -->
+              
               <line x1="40" y1="66" x2="690" y2="66"
                     stroke="var(--color-danger)" stroke-width="1.5" stroke-dasharray="6 5" />
-              <!-- confidence band (filled area between lower and upper) -->
+              
               <path v-if="forecastBandPath" :d="forecastBandPath"
                     fill="#bfdbfe" opacity="0.35" />
-              <!-- predicted line -->
+              
               <path v-if="forecastLinePath" :d="forecastLinePath"
                     fill="none" stroke="var(--color-accent)" stroke-width="2.5"
                     stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6 3" />
-              <!-- data points with tooltip title -->
+              
               <circle v-for="p in forecastPoints" :key="p.x"
                       :cx="p.x" :cy="p.y" r="4" fill="var(--color-accent)">
                 <title>{{ forecastHourLabel(p.hour) }}: {{ p.pct }}%</title>
               </circle>
             </svg>
 
-            <!-- Summary row -->
+            
             <div v-if="forecastPoints.length > 0" class="forecast-summary">
               <div class="forecast-summary-item">
                 <span class="forecast-summary-value">peak: {{ forecastPeak.pct }}%</span>
@@ -686,7 +684,6 @@ function forecastHourLabel(h) {
   return h < 12 ? `${h}am` : `${h - 12}pm`
 }
 
-// SVG points and paths for forecast chart
 const forecastPoints = computed(() =>
   forecastData.value.map((d, i) => ({
     x:    forecastXPos(i),
@@ -716,7 +713,6 @@ const forecastBandPath = computed(() => {
   return `${up} ${down} Z`
 })
 
-// Summary stats
 const forecastPeak = computed(() => {
   if (!forecastData.value.length) return { hour: 0, pct: 0 }
   return forecastData.value.reduce((best, d) =>
