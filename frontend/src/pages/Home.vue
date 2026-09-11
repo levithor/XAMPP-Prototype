@@ -17,7 +17,7 @@
 
     <div class="content">
 
-      <!-- ── Stat cards ─────────────────────────────────────────────────── -->
+     
       <div class="stat-grid">
         <div class="stat-card">
           <div class="stat-icon blue"><i class="ti ti-layout-grid" /></div>
@@ -47,7 +47,7 @@
         </div>
       </div>
 
-      <!-- ── Live room status ───────────────────────────────────────────── -->
+     
       <div>
         <div class="section-header">
           <span class="section-title">live room status</span>
@@ -82,10 +82,10 @@
         </div>
       </div>
 
-      <!-- ── Bottom grid: live alerts + camera status ───────────────────── -->
+      
       <div class="bottom-grid">
 
-        <!-- Live alerts (real data from /api/alerts) -->
+       
         <div class="panel">
           <div class="panel-header">
             <span class="section-title">live alerts</span>
@@ -109,7 +109,7 @@
           </div>
         </div>
 
-        <!-- Camera status (real data from /api/cameras) -->
+      
         <div class="panel">
           <div class="panel-header">
             <span class="section-title">camera status</span>
@@ -148,7 +148,6 @@ import { fetchLatestOccupancy, fetchAlerts, fetchCameras, fetchRooms } from '../
 import { usePolling } from '../other/usePolling.js'
 import { getUser } from '../auth.js'
 
-// ── User / clock ──────────────────────────────────────────────────────────
 const storedUser = getUser()
 const username = computed(() =>
   storedUser?.username || storedUser?.name || 'admin'
@@ -173,18 +172,16 @@ let clockTimer
 onMounted(() => { updateDateTime(); clockTimer = setInterval(updateDateTime, 60000) })
 onUnmounted(() => clearInterval(clockTimer))
 
-// ── Data ──────────────────────────────────────────────────────────────────
-const rooms   = ref([])   // from /api/occupancy/latest — has room_name, occupancy_count
-const roomList = ref([])  // from /api/rooms — used for camera room name lookup
-const cameras = ref([])   // from /api/cameras — has status, camera_name, assigned_room_id
-const alerts  = ref([])   // from /api/alerts
+const rooms   = ref([])   
+const roomList = ref([])  
+const cameras = ref([])   
+const alerts  = ref([])   
 const apiOnline = ref(true)
 
-// ── Computed ──────────────────────────────────────────────────────────────
 const activeAlerts = computed(() =>
   alerts.value
     .filter(a => !a.is_resolved)
-    .slice(0, 6) // cap at 6 so the panel doesn't overflow
+    .slice(0, 6) 
 )
 
 const stats = computed(() => ({
@@ -201,7 +198,6 @@ const statusText = computed(() =>
     : 'system offline · check backend'
 )
 
-// ── Helpers ───────────────────────────────────────────────────────────────
 function roomName(roomId) {
   if (!roomId) return 'unassigned'
   return roomList.value.find(r => r.room_id === roomId)?.room_name ?? `room ${roomId}`
@@ -246,7 +242,7 @@ function formatTime(ts) {
   return new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-// ── Refresh ───────────────────────────────────────────────────────────────
+
 async function refresh() {
   try {
     const [occupancy, alertList, cameraList, allRooms] = await Promise.all([

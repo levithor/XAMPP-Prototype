@@ -425,7 +425,7 @@
 .room-option:hover { background: #f5f5f3; color: var(--color-text-primary); }
 .room-option.active { background: #1a1a1a; color: #fff; font-weight: 500; }
 .room-option i { font-size: 15px; }
-/* ── CHART TABS ── */
+
 .chart-tabs {
   display: flex;
   gap: 4px;
@@ -462,7 +462,47 @@
   color: var(--color-text-secondary);
   background: rgba(255,255,255,0.5);
 }
-/* ── FORECAST CONTROLS ── */
+
+.tab-controls {
+  margin-top: 14px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+  border: 0.5px solid var(--color-border);
+}
+
+html.dark .tab-controls {
+  background: #1f1f1f;
+}
+
+.tab-controls-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.tab-control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.tab-control-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tab-control-label i { font-size: 12px; }
+
+
 .forecast-date-input {
   font-size: 12px;
   font-family: inherit;
@@ -502,7 +542,7 @@
 
 .forecast-predict-btn:hover { opacity: 0.88; }
 
-/* ── FORECAST SUMMARY ── */
+
 .forecast-summary {
   display: flex;
   gap: 20px;
@@ -535,7 +575,7 @@
   gap: 4px;
 }
 
-/* ── CHART TABS ── */
+
 .chart-tabs {
   display: flex;
   gap: 4px;
@@ -580,7 +620,7 @@ html.dark .chart-tab.active {
   box-shadow: 0 1px 4px rgba(0,0,0,0.3);
 }
 
-/* dark mode for forecast date input and selects */
+
 html.dark .forecast-date-input,
 html.dark .forecast-select {
   background: #222222;
@@ -588,7 +628,7 @@ html.dark .forecast-select {
   border-color: rgba(255,255,255,0.1);
   color-scheme: dark;
 }
-/* No-data heatmap cell */
+
 .heat-empty {
   background: transparent;
   color: var(--color-text-muted);

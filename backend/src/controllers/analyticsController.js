@@ -1,6 +1,135 @@
 const db = require('../config/db');
 
 /**
+ * GET /api/analytics/historical-records   [MD-18 getHistoricalRecords]
+ *
+ * Returns the raw occupancy_logs rows (not aggregated) for a room, date,
+ * and hour range — the filtered record list UC-15 asks for, as distinct
+ * from the per-hour averages getHourlyTrend produces.
+ */
+exports.getHistoricalRecords = async (req, res) => {
+    try {
+        const room_id   = req.query.room_id || null;
+        const date      = req.query.date      || new Date().toISOString().slice(0, 10);
+        const hour_from = parseInt(req.query.hour_from ?? 0);
+        const hour_to   = parseInt(req.query.hour_to   ?? 23);
+
+        const roomClause = room_id ? 'AND ol.room_id = ?' : '';
+        const params = [date, hour_from, hour_to];
+        if (room_id) params.push(room_id);
+
+        const [rows] = await db.query(
+            `SELECT
+                ol.*,
+                r.room_name
+             FROM occupancy_logs ol
+             JOIN rooms r ON ol.room_id = r.room_id
+             WHERE DATE(ol.recorded_at) = ?
+               AND HOUR(ol.recorded_at) BETWEEN ? AND ?
+               ${roomClause}
+             ORDER BY ol.recorded_at ASC`,
+            params
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'No historical occupancy data available for the chosen filters.' });
+        }
+
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+/**
+ * GET /api/analytics/average-occupancy   [MD-19 calculateAverageOccupancy]
+ *
+ * Returns a single average occupancy count and percentage utilization for
+ * a room and time window, as distinct from getHourlyTrend's per-hour
+ * breakdown.
+ */
+exports.calculateAverageOccupancy = async (req, res) => {
+    try {
+        const room_id   = req.query.room_id || null;
+        const date      = req.query.date      || new Date().toISOString().slice(0, 10);
+        const hour_from = parseInt(req.query.hour_from ?? 0);
+        const hour_to   = parseInt(req.query.hour_to   ?? 23);
+
+        const roomClause = room_id ? 'AND ol.room_id = ?' : '';
+        const params = [date, hour_from, hour_to];
+        if (room_id) params.push(room_id);
+
+        const [rows] = await db.query(
+            `SELECT
+                ROUND(AVG(ol.occupancy_count), 1)                            AS avg_occupancy_count,
+                ROUND(AVG(ol.occupancy_count / r.capacity_limit * 100), 1)   AS avg_pct,
+                COUNT(*)                                                     AS sample_size
+             FROM occupancy_logs ol
+             JOIN rooms r ON ol.room_id = r.room_id
+             WHERE DATE(ol.recorded_at) = ?
+               AND HOUR(ol.recorded_at) BETWEEN ? AND ?
+               AND r.capacity_limit > 0
+               ${roomClause}`,
+            params
+        );
+
+        if (!rows[0] || rows[0].sample_size === 0) {
+            return res.status(404).json({ error: 'No matching records exist to calculate the average occupancy.' });
+        }
+
+        res.json(rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+/**
+ * GET /api/analytics/peak-occupancy   [MD-20 getPeakOccupancyPeriods]
+ *
+ * Returns the highest-occupancy log entries in the filtered window, each
+ * with its exact recorded_at timestamp — the peak "periods, values, and
+ * timestamps" UC-17 asks for, as distinct from the aggregated heatmap.
+ */
+exports.getPeakOccupancyPeriods = async (req, res) => {
+    try {
+        const room_id   = req.query.room_id || null;
+        const date      = req.query.date      || new Date().toISOString().slice(0, 10);
+        const hour_from = parseInt(req.query.hour_from ?? 0);
+        const hour_to   = parseInt(req.query.hour_to   ?? 23);
+
+        const roomClause = room_id ? 'AND ol.room_id = ?' : '';
+        const params = [date, hour_from, hour_to];
+        if (room_id) params.push(room_id);
+
+        const [rows] = await db.query(
+            `SELECT
+                ol.room_id,
+                r.room_name,
+                ol.occupancy_count,
+                ROUND(ol.occupancy_count / r.capacity_limit * 100, 1) AS occupancy_pct,
+                ol.recorded_at
+             FROM occupancy_logs ol
+             JOIN rooms r ON ol.room_id = r.room_id
+             WHERE DATE(ol.recorded_at) = ?
+               AND HOUR(ol.recorded_at) BETWEEN ? AND ?
+               AND r.capacity_limit > 0
+               ${roomClause}
+             ORDER BY ol.occupancy_count DESC, ol.recorded_at ASC
+             LIMIT 5`,
+            params
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'No matching records exist to identify peak occupancy periods.' });
+        }
+
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+/**
  * GET /api/analytics/hourly-trend
  */
 exports.getHourlyTrend = async (req, res) => {

@@ -12,8 +12,6 @@ async function apiFetch(path, options = {}) {
   return res.json()
 }
 
-// ── authentication stuff ──
-
 export async function loginAdmin(email, password) {
   const res = await fetch('/api/admins/login', {
     method: 'POST',
@@ -36,13 +34,9 @@ export async function registerAdmin({ username, email, password }) {
   return res.json()
 }
 
-// ── occupancy stuff ──
-
 export async function fetchLatestOccupancy() {
   return apiFetch('/api/occupancy/latest')
 }
-
-// ── analytics stuff ──
 
 export async function fetchHourlyTrend(qs = '') {
   return apiFetch(`/api/analytics/hourly-trend${qs ? '?' + qs : ''}`)
@@ -56,7 +50,13 @@ export async function fetchRoomUtilization(qs = '') {
   return apiFetch(`/api/analytics/room-utilization${qs ? '?' + qs : ''}`)
 }
 
-// ── rooms stuff ──
+export async function fetchForecast(qs = '') {
+  return apiFetch(`/api/analytics/forecast${qs ? '?' + qs : ''}`)
+}
+
+export async function fetchPeakOccupancyPeriods(qs = '') {
+  return apiFetch(`/api/analytics/peak-occupancy${qs ? '?' + qs : ''}`)
+}
 
 export async function fetchRooms() {
   return apiFetch('/api/rooms')
@@ -80,8 +80,6 @@ export async function deleteRoom(roomId) {
   return apiFetch(`/api/rooms/${roomId}`, { method: 'DELETE' })
 }
 
-// ── alerts stuff ───
-
 export async function fetchAlerts() {
   return apiFetch('/api/alerts')
 }
@@ -97,8 +95,6 @@ export async function unacknowledgeAlert(id) {
 export async function deleteAlert(id) {
   return apiFetch(`/api/alerts/${id}`, { method: 'DELETE' })
 }
-
-// ── cams stuff ──
 
 export async function fetchCameras() {
   return apiFetch('/api/cameras')
@@ -120,7 +116,4 @@ export async function updateCamera(cameraId, data) {
 
 export async function deleteCamera(cameraId) {
   return apiFetch(`/api/cameras/${cameraId}`, { method: 'DELETE' })
-}
-export async function fetchForecast(qs = '') {
-  return apiFetch(`/api/analytics/forecast${qs ? '?' + qs : ''}`)
 }

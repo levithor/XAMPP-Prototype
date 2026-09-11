@@ -134,6 +134,10 @@
                       @click="chartTab = 'forecast'">
                 <i class="ti ti-brain" /> forecast
               </button>
+              <button class="chart-tab" :class="{ active: chartTab === 'peak' }"
+                      @click="chartTab = 'peak'">
+                <i class="ti ti-flame" /> peak analysis
+              </button>
             </div>
             
             <span v-if="chartTab === 'trend'" class="date-badge">
@@ -174,25 +178,25 @@
               <path v-if="chartPoints.length > 1" :d="linePath"
                     fill="none" stroke="var(--color-accent)" stroke-width="2.5"
                     stroke-linecap="round" stroke-linejoin="round" />
-              <!-- Invisible wider hit area for easier hover -->
+          
               <circle v-for="p in chartPoints" :key="'hit-' + p.x"
                       :cx="p.x" :cy="p.y" r="12" fill="transparent"
                       style="cursor:pointer"
                       @mouseenter="hoveredPoint = p"
                       @mouseleave="hoveredPoint = null" />
-              <!-- Visible dot -->
+         
               <circle v-for="p in chartPoints" :key="p.x"
                       :cx="p.x" :cy="p.y"
                       :r="hoveredPoint && hoveredPoint.x === p.x ? 6 : 4"
                       fill="var(--color-accent)"
                       style="pointer-events:none; transition:r 0.1s" />
-              <!-- Tooltip -->
+         
               <g v-if="hoveredPoint" style="pointer-events:none">
                 <!-- Vertical guide line -->
                 <line :x1="hoveredPoint.x" y1="20"
                       :x2="hoveredPoint.x" :y2="hoveredPoint.y - 8"
                       stroke="var(--color-border)" stroke-width="1" stroke-dasharray="3 2" />
-                <!-- Tooltip box — flip left if near right edge -->
+             
                 <rect
                   :x="hoveredPoint.x > 580 ? hoveredPoint.x - 102 : hoveredPoint.x + 10"
                   :y="Math.max(8, hoveredPoint.y - 36)"
@@ -221,26 +225,35 @@
             </svg>
           </template>
 
-          <template v-else>
-            <div style="display:flex; align-items:center; gap:16px; margin-top:14px; margin-bottom:12px; flex-wrap:wrap;">
-              <!-- Forecast date picker -->
-              <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--color-text-secondary);">
-                <i class="ti ti-calendar" style="font-size:14px;" />
-                <span>forecast date:</span>
-                <input type="date" v-model="forecastDate" :min="tomorrowStr"
-                       class="forecast-date-input" />
-              </div>
+          <template v-else-if="chartTab === 'forecast'">
+            <div class="tab-controls">
+              <div class="tab-controls-row">
+            
+                <div class="tab-control-group">
+                  <span class="tab-control-label"><i class="ti ti-door" /> room</span>
+                  <select v-model="forecastRoomId" class="time-select forecast-select" style="width:150px;">
+                    <option :value="null">all rooms</option>
+                    <option v-for="r in rooms" :key="r.room_id" :value="r.room_id">{{ r.room_name }}</option>
+                  </select>
+                </div>
               
-              <div style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--color-text-secondary);">
-                <i class="ti ti-clock" style="font-size:14px;" />
-                <span>hours:</span>
-                <select v-model="forecastHourFrom" class="time-select forecast-select">
-                  <option v-for="h in hourOptions" :key="h.v" :value="h.v">{{ h.l }}</option>
-                </select>
-                <span>–</span>
-                <select v-model="forecastHourTo" class="time-select forecast-select">
-                  <option v-for="h in hourOptions" :key="h.v" :value="h.v" :disabled="h.v <= forecastHourFrom">{{ h.l }}</option>
-                </select>
+                <div class="tab-control-group">
+                  <span class="tab-control-label"><i class="ti ti-calendar" /> forecast date</span>
+                  <input type="date" v-model="forecastDate" :min="tomorrowStr" class="forecast-date-input" />
+                </div>
+              
+                <div class="tab-control-group">
+                  <span class="tab-control-label"><i class="ti ti-clock" /> hours</span>
+                  <div style="display:flex; align-items:center; gap:6px;">
+                    <select v-model="forecastHourFrom" class="time-select forecast-select">
+                      <option v-for="h in hourOptions" :key="h.v" :value="h.v">{{ h.l }}</option>
+                    </select>
+                    <span style="color:var(--color-text-muted);">–</span>
+                    <select v-model="forecastHourTo" class="time-select forecast-select">
+                      <option v-for="h in hourOptions" :key="h.v" :value="h.v" :disabled="h.v <= forecastHourFrom">{{ h.l }}</option>
+                    </select>
+                  </div>
+                </div>
                 <button @click="runForecast" class="forecast-predict-btn">
                   <i class="ti ti-refresh" /> predict
                 </button>
@@ -325,6 +338,119 @@
               </div>
             </div>
           </template>
+          <template v-else-if="chartTab === 'peak'">
+            <div class="tab-controls">
+              <div class="tab-controls-row">
+                <!-- Room picker -->
+                <div class="tab-control-group">
+                  <span class="tab-control-label"><i class="ti ti-door" /> room</span>
+                  <select v-model="peakRoomId" class="time-select forecast-select" style="width:150px;">
+                    <option :value="null">all rooms</option>
+                    <option v-for="r in rooms" :key="r.room_id" :value="r.room_id">{{ r.room_name }}</option>
+                  </select>
+                </div>
+                
+                <div class="tab-control-group">
+                  <span class="tab-control-label"><i class="ti ti-calendar" /> date</span>
+                  <input type="date" v-model="peakDate" :max="toDateStr(today)" class="forecast-date-input" />
+                </div>
+                <!-- Hour range -->
+                <div class="tab-control-group">
+                  <span class="tab-control-label"><i class="ti ti-clock" /> hours</span>
+                  <div style="display:flex; align-items:center; gap:6px;">
+                    <select v-model="peakHourFrom" class="time-select forecast-select">
+                      <option v-for="h in hourOptions" :key="h.v" :value="h.v">{{ h.l }}</option>
+                    </select>
+                    <span style="color:var(--color-text-muted);">–</span>
+                    <select v-model="peakHourTo" class="time-select forecast-select">
+                      <option v-for="h in hourOptions" :key="h.v" :value="h.v" :disabled="h.v <= peakHourFrom">{{ h.l }}</option>
+                    </select>
+                  </div>
+                </div>
+                <button @click="runPeakAnalysis" class="forecast-predict-btn">
+                  <i class="ti ti-search" /> analyse
+                </button>
+              </div>
+            </div>
+
+            <div v-if="peakLoading" class="chart-placeholder">
+              <i class="ti ti-loader" style="font-size:20px; margin-bottom:8px; display:block;" />
+              analysing peak periods…
+            </div>
+            <div v-else-if="peakError" class="chart-placeholder">
+              <i class="ti ti-mood-empty" style="font-size:28px; margin-bottom:8px; display:block; color:var(--color-text-muted);" />
+              <span>{{ peakError }}</span>
+            </div>
+            <div v-else-if="peakData.length === 0" class="chart-placeholder">
+              <i class="ti ti-chart-bar" style="font-size:28px; margin-bottom:8px; display:block; color:var(--color-text-muted);" />
+              <span>click analyse to find the top 5 peak occupancy periods</span>
+            </div>
+            <div v-else>
+              
+              <div v-for="(record, idx) in peakData" :key="record.log_id ?? idx"
+                   style="display:flex; align-items:center; gap:14px; padding:12px 0; border-bottom:0.5px solid var(--color-border);">
+                
+                <div :style="{
+                    width: '32px', height: '32px', borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontWeight: '600', fontSize: '13px', flexShrink: '0',
+                    background: idx === 0 ? '#FEF3C7' : idx === 1 ? '#F1F5F9' : idx === 2 ? '#FEF2F2' : 'var(--color-surface)',
+                    color:      idx === 0 ? '#B45309' : idx === 1 ? '#475569' : idx === 2 ? '#B91C1C' : 'var(--color-text-muted)',
+                    border:     '0.5px solid var(--color-border)'
+                  }">
+                  {{ idx + 1 }}
+                </div>
+                <!-- Room + time -->
+                <div style="flex:1; min-width:0;">
+                  <div style="font-size:13px; font-weight:500;">{{ record.room_name }}</div>
+                  <div style="font-size:11px; color:var(--color-text-muted); margin-top:2px;">
+                    {{ formatPeakTime(record.recorded_at) }}
+                  </div>
+                </div>
+                
+                <div style="width:120px;">
+                  <div style="font-size:11px; color:var(--color-text-muted); margin-bottom:4px; text-align:right;">
+                    {{ record.occupancy_count }} occupants
+                  </div>
+                  <div class="util-bar-wrap" style="width:100%;">
+                    <div class="util-bar-fill"
+                         :style="{
+                           width: Math.min(100, record.occupancy_pct) + '%',
+                           background: record.occupancy_pct >= 100
+                             ? 'var(--color-danger)'
+                             : record.occupancy_pct >= 80
+                               ? 'var(--color-warning)'
+                               : 'var(--color-success)'
+                         }"></div>
+                  </div>
+                </div>
+               
+                <div style="width:52px; text-align:right;">
+                  <span class="status-pill"
+                        :class="record.occupancy_pct >= 100 ? 'badge-danger' : record.occupancy_pct >= 80 ? 'badge-warning' : 'badge-success'">
+                    {{ Math.round(record.occupancy_pct) }}%
+                  </span>
+                </div>
+              </div>
+
+              <!-- Summary row -->
+              <div style="display:flex; gap:20px; margin-top:14px; padding-top:12px; border-top:0.5px solid var(--color-border); flex-wrap:wrap;">
+                <div style="font-size:11px; color:var(--color-text-muted);">
+                  <span style="font-weight:500; color:var(--color-text-primary);">{{ peakData[0]?.occupancy_count ?? '—' }}</span>
+                  highest occupancy
+                </div>
+                <div style="font-size:11px; color:var(--color-text-muted);">
+                  <span style="font-weight:500; color:var(--color-text-primary);">{{ peakData[0]?.room_name ?? '—' }}</span>
+                  busiest room
+                </div>
+                <div style="font-size:11px; color:var(--color-text-muted);">
+                  <span style="font-weight:500; color:var(--color-text-primary);">{{ formatPeakTime(peakData[0]?.recorded_at) }}</span>
+                  at peak time
+                </div>
+              </div>
+            </div>
+          </template>
+
         </div>
 
         <div class="panel">
@@ -444,7 +570,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { fetchHourlyTrend, fetchWeeklyHeatmap, fetchRoomUtilization, fetchRooms, fetchAlerts, fetchForecast } from '../api.js'
+import { fetchHourlyTrend, fetchWeeklyHeatmap, fetchRoomUtilization, fetchRooms, fetchAlerts, fetchForecast, fetchPeakOccupancyPeriods } from '../api.js'
 
 const rooms          = ref([])
 const selectedRoomId = ref(null)   
@@ -467,7 +593,8 @@ async function loadRooms() {
 }
 
 const today      = new Date()
-const toDateStr  = d => d.toISOString().slice(0, 10)
+const toDateStr  = d =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 const selectedDate = ref(toDateStr(today))
 const hourFrom     = ref(0)
@@ -599,11 +726,11 @@ const alertRooms = computed(() =>
     .filter(a => !selectedRoomId.value || a.room_id === selectedRoomId.value)
 )
 
-// ── Alert pagination ──────────────────────────────────────────────────────
+
 const ALERTS_PER_PAGE = 4
 const alertPage = ref(1)
 
-// Reset to page 1 whenever the filtered list changes
+
 watch(alertRooms, () => { alertPage.value = 1 })
 
 const alertTotalPages = computed(() =>
@@ -615,7 +742,7 @@ const pagedAlerts = computed(() => {
   return alertRooms.value.slice(start, start + ALERTS_PER_PAGE)
 })
 
-// Alert card class helpers — handle all three alert types correctly
+
 function alertCardClass(type) {
   if (type === 'overcrowding')       return 'danger'
   if (type === 'near_capacity')      return 'warning'
@@ -660,8 +787,8 @@ const chartPoints = computed(() => {
     .filter(Boolean)
 })
 
-// ── Trend tooltip ────────────────────────────────────────────────────────
-const hoveredPoint = ref(null)   // { x, y, pct, hour } | null
+
+const hoveredPoint = ref(null)   
 
 function hourLabel(h) {
   if (h === 0)  return '12am'
@@ -732,17 +859,24 @@ function formatTime(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-const chartTab       = ref('trend')   
+const chartTab        = ref('trend')
 const forecastLoading = ref(false)
-const forecastData   = ref([])        
+const forecastData    = ref([])
 
 const tomorrowStr = computed(() => {
   const d = new Date(); d.setDate(d.getDate() + 1)
-  return d.toISOString().slice(0, 10)
+  return toDateStr(d)
 })
+
+const forecastRoomId   = ref(null)
 const forecastDate     = ref(tomorrowStr.value)
 const forecastHourFrom = ref(8)
 const forecastHourTo   = ref(18)
+
+const peakRoomId   = ref(null)
+const peakDate     = ref(toDateStr(today))
+const peakHourFrom = ref(0)
+const peakHourTo   = ref(23)
 
 async function runForecast() {
   forecastLoading.value = true
@@ -752,7 +886,7 @@ async function runForecast() {
       hour_from: forecastHourFrom.value,
       hour_to:   forecastHourTo.value,
     })
-    if (selectedRoomId.value) p.set('room_id', selectedRoomId.value)
+    if (forecastRoomId.value) p.set('room_id', forecastRoomId.value)
     forecastData.value = await fetchForecast(p.toString())
   } catch (err) {
     console.warn('Forecast failed:', err.message)
@@ -832,6 +966,52 @@ const forecastAvg = computed(() => {
 const forecastOverCapacity = computed(() =>
   forecastPoints.value.filter(p => p.pct >= 80)
 )
+
+
+const peakData    = ref([])
+const peakLoading = ref(false)
+const peakError   = ref('')
+
+async function runPeakAnalysis() {
+  peakLoading.value = true
+  peakError.value   = ''
+  try {
+    const p = new URLSearchParams({
+      date:      peakDate.value,
+      hour_from: peakHourFrom.value,
+      hour_to:   peakHourTo.value,
+    })
+    if (peakRoomId.value) p.set('room_id', peakRoomId.value)
+    peakData.value = await fetchPeakOccupancyPeriods(p.toString())
+  } catch (err) {
+    peakError.value = err.message.includes('404')
+      ? 'no occupancy records found for the selected filters'
+      : `error: ${err.message}`
+    peakData.value = []
+  } finally {
+    peakLoading.value = false
+  }
+}
+
+
+watch(chartTab, val => {
+  if (val === 'peak') runPeakAnalysis()
+})
+
+
+watch([peakDate, peakRoomId, peakHourFrom, peakHourTo], () => {
+  peakData.value  = []
+  peakError.value = ''
+})
+
+function formatPeakTime(ts) {
+  if (!ts) return '--'
+  return new Date(ts).toLocaleString([], {
+    month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
+  })
+}
+
 </script>
 
 <style>
