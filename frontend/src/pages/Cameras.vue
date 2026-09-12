@@ -133,21 +133,114 @@
         <div class="modal-fields">
           <div class="modal-field">
             <label>camera name</label>
-            <input v-model="form.camera_name" placeholder="e.g. CAM-301" />
-          </div>
-          <div class="modal-field">
-            <label>rtsp url</label>
-            <input v-model="form.rtsp_url" placeholder="e.g. rtsp://192.168.1.101:554/stream" />
+            <input
+              v-model="form.camera_name"
+              placeholder="e.g. CAM-301"
+            />
           </div>
           <div class="modal-field">
             <label>assign to room</label>
             <select v-model="form.assigned_room_id" class="modal-select">
               <option :value="null">— unassigned —</option>
-              <option v-for="room in rooms" :key="room.room_id" :value="room.room_id">
+
+              <option
+                v-for="room in rooms"
+                :key="room.room_id"
+                :value="room.room_id"
+              >
                 {{ room.room_name }}
               </option>
             </select>
           </div>
+           <div class="modal-field">
+            <label>connection type</label>
+
+            <div class="connection-toggle">
+
+              <button
+                type="button"
+                class="connection-option"
+                :class="{ active: form.connection_type === 'RTSP' }"
+                @click="form.connection_type = 'RTSP'"
+              >
+                RTSP
+              </button>
+
+              <button
+                type="button"
+                class="connection-option"
+                :class="{ active: form.connection_type === 'DAHUA' }"
+                @click="form.connection_type = 'DAHUA'"
+              >
+                Dahua
+              </button>
+
+            </div>
+          </div>
+          <template v-if="form.connection_type === 'RTSP'">
+
+            <div class="modal-field">
+              <label>rtsp url</label>
+
+              <input
+                v-model="form.rtsp_url"
+                placeholder="rtsp://192.168.1.101:554/stream"
+              />
+            </div>
+
+          </template>
+          <template v-else>
+
+            <div class="modal-field">
+              <label>ip / domain name</label>
+
+              <input
+                v-model="form.dahua_host"
+                placeholder="e.g. 192.168.1.108"
+              />
+            </div>
+
+            <div class="modal-field">
+              <label>port</label>
+
+              <input
+                v-model="form.dahua_port"
+                type="number"
+                placeholder="e.g. 80"
+              />
+            </div>
+
+            <div class="modal-field">
+              <label>use https</label>
+
+              <label class="switch">
+                <input
+                  type="checkbox"
+                  v-model="form.dahua_https"
+                />
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="modal-field">
+              <label>path</label>
+
+              <input
+                v-model="form.dahua_path"
+                placeholder="e.g. /getImages.php"
+              />
+            </div>
+
+            <div class="modal-field">
+              <label>event type</label>
+
+              <input
+                v-model="form.dahua_event_type"
+                placeholder="e.g. snapshot"
+              />
+            </div>
+
+          </template>
         </div>
 
         <p v-if="modalError" style="font-size:12px; color:var(--color-danger); margin-top:10px;">{{ modalError }}</p>
@@ -177,9 +270,20 @@ const editingCamera = ref(null)
 const modalError    = ref('')
 
 const form = ref({
-  camera_name:      '',
-  rtsp_url:         '',
+  camera_name: '',
   assigned_room_id: null,
+
+  connection_type: 'RTSP',
+
+  // this one is for the old way
+  rtsp_url: '',
+
+  // this ones for the external method
+  dahua_host: '',
+  dahua_port: '',
+  dahua_https: false,
+  dahua_path: '',
+  dahua_event_type: '',
 })
 
 const filters = [
