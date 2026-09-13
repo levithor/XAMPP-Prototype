@@ -7,7 +7,7 @@ from detection.yolo_detector import YOLODetector
 from capture.video_source import VideoSource
 from capture.camera_source import CameraSource
 
-
+CAMERA_ID = 1
 FRAME_INTERVAL = 10 
 OUTPUT_DIR = "output"
 SAVE_DETECTIONS = True
@@ -30,11 +30,27 @@ def process_frame(frame, frame_count, detector, backend):
     print(f"Backend response: {response}")
 
 def main():
-    # source = VideoSource("input/demo.mp4", loop=True)
-    # change source to CameraSource in backend call
-    source = CameraSource("rtsp://admin:Dahua01$@192.168.1.108:554/cam/realmonitor?channel=1&subtype=1")
-    detector = YOLODetector()
+
     backend = BackendClient()
+
+    # Get camera configuration from the backend/database
+    camera = backend.get_camera(CAMERA_ID)
+
+    print("Camera configuration retrieved:")
+    print(camera)
+
+    rtsp_url = camera["rtsp_url"]
+
+    if not rtsp_url:
+        raise Exception(
+            f"Camera {CAMERA_ID} does not have an RTSP URL configured."
+        )
+
+    print(f"Connecting to camera {CAMERA_ID}...")
+
+    source = CameraSource(rtsp_url)
+
+    detector = YOLODetector()
 
     last_capture = time.time()
     frame_count = 0
@@ -45,7 +61,6 @@ def main():
 
             frame = source.get_frame()
 
-            # Lost connection?
             if frame is None:
                 print("No frame received.")
                 continue
@@ -60,10 +75,12 @@ def main():
                     frame,
                     frame_count,
                     detector,
-                    backend
+                    backend,
+                    CAMERA_ID
                 )
 
                 last_capture = current_time
+
     finally:
         source.release()
 
