@@ -7,12 +7,12 @@ from detection.yolo_detector import YOLODetector
 from capture.video_source import VideoSource
 from capture.camera_source import CameraSource
 
-CAMERA_ID = 1
+CAMERA_ID = 6
 FRAME_INTERVAL = 10 
 OUTPUT_DIR = "output"
 SAVE_DETECTIONS = True
 
-def process_frame(frame, frame_count, detector, backend):
+def process_frame(frame, frame_count, detector, backend, camera_id):
     people, results = detector.detect_people(frame)
     print(f"Frame {frame_count}: {people} people detected")
 
@@ -23,7 +23,7 @@ def process_frame(frame, frame_count, detector, backend):
         )
 
     response = backend.send_occupancy(
-        camera_id=1,
+        camera_id=camera_id,
         people=people
     )
 
