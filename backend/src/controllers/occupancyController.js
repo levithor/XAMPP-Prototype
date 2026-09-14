@@ -76,9 +76,6 @@ exports.createLog = async (req, res) => {
             [camera_id]
         );
 
-        // Check thresholds and fire/resolve alerts automatically.
-        // This runs after the response is sent so the camera isn't
-        // kept waiting on alert logic.
         await checkAndCreateAlerts(room_id, occupancy_count);
 
         res.status(201).json({log_id: result.insertId});

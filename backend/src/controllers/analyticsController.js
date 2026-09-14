@@ -1,12 +1,5 @@
 const db = require('../config/db');
 
-/**
- * GET /api/analytics/historical-records   [MD-18 getHistoricalRecords]
- *
- * Returns the raw occupancy_logs rows (not aggregated) for a room, date,
- * and hour range — the filtered record list UC-15 asks for, as distinct
- * from the per-hour averages getHourlyTrend produces.
- */
 exports.getHistoricalRecords = async (req, res) => {
     try {
         const room_id   = req.query.room_id || null;
@@ -41,13 +34,6 @@ exports.getHistoricalRecords = async (req, res) => {
     }
 };
 
-/**
- * GET /api/analytics/average-occupancy   [MD-19 calculateAverageOccupancy]
- *
- * Returns a single average occupancy count and percentage utilization for
- * a room and time window, as distinct from getHourlyTrend's per-hour
- * breakdown.
- */
 exports.calculateAverageOccupancy = async (req, res) => {
     try {
         const room_id   = req.query.room_id || null;
@@ -83,13 +69,6 @@ exports.calculateAverageOccupancy = async (req, res) => {
     }
 };
 
-/**
- * GET /api/analytics/peak-occupancy   [MD-20 getPeakOccupancyPeriods]
- *
- * Returns the highest-occupancy log entries in the filtered window, each
- * with its exact recorded_at timestamp — the peak "periods, values, and
- * timestamps" UC-17 asks for, as distinct from the aggregated heatmap.
- */
 exports.getPeakOccupancyPeriods = async (req, res) => {
     try {
         const room_id   = req.query.room_id || null;
@@ -129,9 +108,6 @@ exports.getPeakOccupancyPeriods = async (req, res) => {
     }
 };
 
-/**
- * GET /api/analytics/hourly-trend
- */
 exports.getHourlyTrend = async (req, res) => {
     try {
         const date      = req.query.date      || new Date().toISOString().slice(0, 10);
@@ -146,6 +122,7 @@ exports.getHourlyTrend = async (req, res) => {
         const [rows] = await db.query(
             `SELECT
                 HOUR(ol.recorded_at)                                        AS hour,
+                ROUND(AVG(ol.occupancy_count), 1)                           AS avg_occupancy_count,
                 ROUND(AVG(ol.occupancy_count / r.capacity_limit * 100), 1)  AS avg_pct
              FROM occupancy_logs ol
              JOIN rooms r ON ol.room_id = r.room_id
@@ -164,24 +141,13 @@ exports.getHourlyTrend = async (req, res) => {
     }
 };
 
-/**
- * GET /api/analytics/weekly-heatmap?date=YYYY-MM-DD&room_id=1
- *
- * Returns occupancy data for the Mon–Sun week that contains the selected date.
- * Each row shows the average occupancy % per day-of-week + hour for that week only.
- * Changing the date to a different week shows that week's data fresh.
- */
 exports.getWeeklyHeatmap = async (req, res) => {
     try {
         const date    = req.query.date    || new Date().toISOString().slice(0, 10);
         const room_id = req.query.room_id || null;
 
-        // Find Monday of the week containing the selected date.
-        // DATE_FORMAT weekday: 0=Monday … 6=Sunday (MODE 1)
-        // We use DAYOFWEEK (1=Sun … 7=Sat) and adjust to get Mon.
-        // Easier to just calculate in JS and pass two dates to SQL.
-        const d         = new Date(date + 'T12:00:00'); // noon avoids DST edge
-        const dayOfWeek = d.getDay();                   // 0=Sun, 1=Mon … 6=Sat
+        const d         = new Date(date + 'T12:00:00'); 
+        const dayOfWeek = d.getDay();                   
         const diffToMon = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
         const monday    = new Date(d);
         monday.setDate(d.getDate() + diffToMon);
@@ -210,7 +176,7 @@ exports.getWeeklyHeatmap = async (req, res) => {
             params
         );
 
-        // Also return the week bounds so the frontend can label the heatmap
+        // week bounds 4 heatmap, might change later. it looks kinda weird ngl. idk how to make it not look weird will have to brainstorm or sumn.
         res.json({
             week_start: weekStart,
             week_end:   weekEnd,
@@ -221,9 +187,7 @@ exports.getWeeklyHeatmap = async (req, res) => {
     }
 };
 
-/**
- * GET /api/analytics/forecast
- */
+
 exports.getForecast = async (req, res) => {
     try {
         const today    = new Date();
@@ -300,9 +264,7 @@ exports.getForecast = async (req, res) => {
     }
 };
 
-/**
- * GET /api/analytics/room-utilization
- */
+
 exports.getRoomUtilization = async (req, res) => {
     try {
         const date      = req.query.date      || new Date().toISOString().slice(0, 10);

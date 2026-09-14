@@ -112,10 +112,10 @@
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">over-capacity events</div>
-          <div class="stat-value">{{ stats.overCapacity }}</div>
-          <div class="stat-trend" :class="stats.overCapacity > 0 ? 'trend-down' : 'trend-neutral'">
-            {{ stats.overCapacity }} overcrowding event{{ stats.overCapacity !== 1 ? 's' : '' }}
+          <div class="stat-label">most recent occupancy</div>
+          <div class="stat-value">{{ stats.latestCount }}</div>
+          <div class="stat-trend" :class="stats.latestOverCapacity ? 'trend-down' : 'trend-neutral'">
+            {{ stats.latestRoomLabel }}
           </div>
         </div>
       </div>
@@ -147,13 +147,15 @@
 
           <template v-if="chartTab === 'trend'">
             <div class="chart-legend" style="margin-top:14px;">
-              <div class="legend-item"><span class="legend-swatch"></span> avg occupancy</div>
-              <div class="legend-item"><span class="legend-swatch dashed"></span> capacity limit (80%)</div>
+              <div class="legend-item"><span class="legend-swatch"></span> avg occupancy count</div>
+              <div v-if="capacityLineY !== null" class="legend-item">
+                <span class="legend-swatch dashed"></span> capacity limit ({{ selectedRoomCapacity }})
+              </div>
             </div>
             <div v-if="loading" class="chart-placeholder">loading…</div>
             <svg v-else viewBox="0 0 700 280" style="width:100%; height:320px;">
               <g stroke="var(--color-border)" stroke-width="0.5">
-                <line v-for="(pct,i) in [100,80,60,40,20,0]" :key="pct"
+                <line v-for="(lbl,i) in chartYLabels" :key="'gl'+i"
                       x1="40" :y1="20 + i*42" x2="690" :y2="20 + i*42" />
               </g>
               <g stroke="var(--color-border)" stroke-width="1">
@@ -161,17 +163,14 @@
                 <line x1="40" y1="230" x2="690" y2="230" />
               </g>
               <g font-size="10" fill="var(--color-text-muted)" font-family="-apple-system,sans-serif">
-                <text x="32" y="24"  text-anchor="end">100%</text>
-                <text x="32" y="66"  text-anchor="end">80%</text>
-                <text x="32" y="108" text-anchor="end">60%</text>
-                <text x="32" y="150" text-anchor="end">40%</text>
-                <text x="32" y="192" text-anchor="end">20%</text>
-                <text x="32" y="234" text-anchor="end">0%</text>
+                <text v-for="(lbl,i) in chartYLabels" :key="'yl'+i"
+                      x="32" :y="24 + i*42" text-anchor="end">{{ lbl }}</text>
               </g>
               <g font-size="10" fill="var(--color-text-muted)" font-family="-apple-system,sans-serif" text-anchor="middle">
                 <text v-for="(lbl, i) in visibleXLabels" :key="lbl" :x="xPos(i)" y="250">{{ lbl }}</text>
               </g>
-              <line x1="40" y1="66" x2="690" y2="66"
+              <line v-if="capacityLineY !== null"
+                    x1="40" :y1="capacityLineY" x2="690" :y2="capacityLineY"
                     stroke="var(--color-danger)" stroke-width="1.5" stroke-dasharray="6 5" />
               <path v-if="chartPoints.length > 1" :d="areaPath"
                     fill="var(--color-accent)" opacity="0.08" />
@@ -216,7 +215,9 @@
                   text-anchor="middle" font-size="11"
                   fill="var(--color-surface)" opacity="0.85"
                   font-family="-apple-system,sans-serif">
-                  avg {{ Math.round(hoveredPoint.pct) }}%
+                  {{ selectedRoomCapacity
+                       ? Math.round(hoveredPoint.count) + ' / ' + selectedRoomCapacity
+                       : Math.round(hoveredPoint.count) + ' people' }}
                 </text>
               </g>
               <text v-if="chartPoints.length === 0" x="365" y="130"
@@ -708,6 +709,15 @@ const filteredUtilization = computed(() =>
 
 const stats = computed(() => {
   const data = filteredUtilization.value
+
+  // Most recent single log row actually written to the database (by
+  // last_updated), as opposed to any averaged figure.
+  const latest = data.reduce((best, r) => {
+    if (!r.last_updated) return best
+    if (!best || new Date(r.last_updated) > new Date(best.last_updated)) return r
+    return best
+  }, null)
+
   return {
     totalRooms:    utilization.value.length,
     occupiedRooms: data.filter(r => (r.occupancy_count ?? 0) > 0).length,
@@ -716,7 +726,13 @@ const stats = computed(() => {
       ? Math.round(data.reduce((s, r) =>
           s + ((r.occupancy_count ?? 0) / (r.capacity ?? 40)) * 100, 0) / data.length)
       : 0,
-    overCapacity: data.filter(r => (r.occupancy_count ?? 0) >= (r.capacity ?? 40)).length,
+    latestCount: latest ? (latest.occupancy_count ?? 0) : 0,
+    latestOverCapacity: latest
+      ? (latest.occupancy_count ?? 0) >= (latest.capacity ?? 40)
+      : false,
+    latestRoomLabel: latest
+      ? `${latest.name} · ${formatTime(latest.last_updated)}`
+      : 'no data',
   }
 })
 
@@ -777,12 +793,47 @@ function xPos(i) {
   return 60 + i * (630 / (n - 1))
 }
 
+const selectedRoomCapacity = computed(() => {
+  if (!selectedRoomId.value) return null
+  return filteredUtilization.value[0]?.capacity ?? null
+})
+
+// Nice round upper bound for the count-based y-axis, based on the data
+// (and the room's capacity line, when one room is selected) so the chart
+// scale adapts to whatever range of headcounts is actually in play.
+const chartMaxValue = computed(() => {
+  const counts = hourlyTrend.value.map(d => Number(d.avg_occupancy_count) || 0)
+  const dataMax = counts.length ? Math.max(...counts) : 0
+  const rawMax  = selectedRoomCapacity.value
+    ? Math.max(dataMax, selectedRoomCapacity.value)
+    : dataMax
+  if (rawMax <= 0) return 10
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawMax)))
+  return Math.ceil((rawMax * 1.15) / magnitude) * magnitude
+})
+
+const chartYLabels = computed(() => {
+  const max = chartMaxValue.value
+  return [1, 0.8, 0.6, 0.4, 0.2, 0].map(f => Math.round(max * f))
+})
+
+const capacityLineY = computed(() => {
+  const cap = selectedRoomCapacity.value
+  if (!cap) return null
+  const max = chartMaxValue.value
+  return 230 - Math.min(max, cap) / max * 210
+})
+
 const chartPoints = computed(() => {
   const byHour = {}
-  hourlyTrend.value.forEach(d => { byHour[d.hour] = d.avg_pct })
+  hourlyTrend.value.forEach(d => {
+    const n = Number(d.avg_occupancy_count)
+    if (Number.isFinite(n)) byHour[d.hour] = n
+  })
+  const max = chartMaxValue.value
   return visibleHours.value
     .map((h, i) => byHour[h] !== undefined
-      ? { x: xPos(i), y: 230 - Math.min(100, Math.max(0, byHour[h])) * 2.1, pct: byHour[h], hour: h }
+      ? { x: xPos(i), y: 230 - Math.min(max, Math.max(0, byHour[h])) / max * 210, count: byHour[h], hour: h }
       : null)
     .filter(Boolean)
 })
