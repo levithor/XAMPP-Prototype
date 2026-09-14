@@ -25,6 +25,13 @@ async function setupDatabase() {
 
     await connection.query(seed);
 
+    const seed_mock_data = fs.readFileSync(
+        path.join(__dirname, '../database/seed_mock_data.sql'),
+        'utf8'
+    );
+
+    await connection.query(seed_mock_data);
+
     console.log('Database initialized');
 
     await connection.end();

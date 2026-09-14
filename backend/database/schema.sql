@@ -37,7 +37,7 @@ CREATE TABLE cameras (
 CREATE TABLE occupancy_logs (
     log_id INT AUTO_INCREMENT PRIMARY KEY,
     room_id INT NOT NULL,
-    camera_id INT NOT NULL,
+    camera_id INT NULL,
     occupancy_count INT NOT NULL,
     recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 
@@ -46,6 +46,7 @@ CREATE TABLE occupancy_logs (
 
     FOREIGN KEY (camera_id)
         REFERENCES cameras(camera_id)
+        ON DELETE SET NULL
 );
 
 CREATE TABLE alerts (
