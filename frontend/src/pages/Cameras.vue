@@ -260,6 +260,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { fetchCameras, addCamera, updateCamera, deleteCamera, fetchRooms } from '../api.js'
+import { useToast } from '../other/useToast.js'
 import { usePolling } from '../other/usePolling.js'
 
 const cameras       = ref([])
@@ -268,6 +269,7 @@ const activeFilter  = ref('all')
 const showModal     = ref(false)
 const editingCamera = ref(null)
 const modalError    = ref('')
+const { toast }     = useToast()
 
 const form = ref({
   camera_name: '',
@@ -386,8 +388,10 @@ async function submitModal() {
     } else {
       await addCamera(payload)
     }
+    const action = editingCamera.value ? 'updated' : 'added'
     closeModal()
     await refresh()
+    toast.success(`camera ${action} successfully`)
   } catch (err) {
     modalError.value = `error: ${err.message}`
   }
@@ -395,7 +399,7 @@ async function submitModal() {
 
 async function confirmDelete(cam) {
   if (!confirm(`delete "${cam.camera_name}"?`)) return
-  try { await deleteCamera(cam.camera_id); await refresh() }
+  try { await deleteCamera(cam.camera_id); await refresh(); toast.success('camera deleted') }
   catch (err) { alert(`could not delete camera: ${err.message}`) }
 }
 </script>

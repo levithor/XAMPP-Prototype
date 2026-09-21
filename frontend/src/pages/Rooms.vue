@@ -131,6 +131,9 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { fetchRooms, fetchLatestOccupancy, addRoom, updateRoom, deleteRoom } from '../api.js'
+import { useToast } from '../other/useToast.js'
+
+const { toast } = useToast()
 import { usePolling } from '../other/usePolling.js'
 
 const rooms = ref([])
@@ -240,8 +243,10 @@ async function submitModal() {
         occupancy_threshold: form.value.occupancy_threshold,
       })
     }
+    const action = editingRoom.value ? 'updated' : 'created'
     closeModal()
     await refresh()
+    toast.success(`room ${action} successfully`)
   } catch (err) {
     modalError.value = `error: ${err.message}`
   }
@@ -249,7 +254,7 @@ async function submitModal() {
 
 async function confirmDelete(room) {
   if (!confirm(`delete "${room.room_name}"?`)) return
-  try { await deleteRoom(room.room_id); await refresh() }
+  try { await deleteRoom(room.room_id); await refresh(); toast.success('room deleted') }
   catch (err) { alert(`could not delete room: ${err.message}`) }
 }
 </script>

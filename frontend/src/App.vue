@@ -7,12 +7,16 @@
   </div>
 
   <router-view v-else />
+
+  <!-- Global toast notifications — renders above everything via Teleport -->
+  <ToastList />
 </template>
 
 <script setup>
 import { ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import AppSidebar from './components/AppSidebar.vue'
+import ToastList  from './components/ToastList.vue'
 import { isAuthenticated, getUser, clearAuth } from './auth.js'
 
 const router = useRouter()

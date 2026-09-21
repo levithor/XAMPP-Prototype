@@ -155,10 +155,12 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { fetchAlerts, acknowledgeAlert, unacknowledgeAlert, deleteAlert } from '../api.js'
+import { useToast } from '../other/useToast.js'
 import { usePolling } from '../other/usePolling.js'
 
 const alerts      = ref([])
 const activeFilter = ref('all')
+const { toast }    = useToast()
 
 const filters = [
   { key: 'all',                label: 'all' },
@@ -223,18 +225,18 @@ function typeLabel(type) {
 // ── Actions ────────────────────────────────────────────────────────────────
 
 async function ackAlert(id) {
-  try { await acknowledgeAlert(id); await refresh() }
+  try { await acknowledgeAlert(id); await refresh(); toast.success('alert acknowledged') }
   catch (err) { console.warn(err) }
 }
 
 async function unackAlert(id) {
-  try { await unacknowledgeAlert(id); await refresh() }
+  try { await unacknowledgeAlert(id); await refresh(); toast.info('alert marked active') }
   catch (err) { console.warn(err) }
 }
 
 async function delAlert(id) {
   if (!confirm('delete this alert from history?')) return
-  try { await deleteAlert(id); await refresh() }
+  try { await deleteAlert(id); await refresh(); toast.success('alert deleted') }
   catch (err) { console.warn(err) }
 }
 
@@ -242,6 +244,7 @@ async function acknowledgeAll() {
   try {
     await Promise.all(activeAlerts.value.map(a => acknowledgeAlert(a.alert_id)))
     await refresh()
+    toast.success('all alerts acknowledged')
   } catch (err) { console.warn(err) }
 }
 
