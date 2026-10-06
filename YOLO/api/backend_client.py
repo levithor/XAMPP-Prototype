@@ -17,6 +17,14 @@ class BackendClient:
 
         return response.json()
 
+    def get_cameras(self):
+        url = f"{self.base_url}/cameras"
+
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+
+        return response.json()
+
     def send_occupancy(self, camera_id, people):
         url = f"{self.base_url}/occupancy"
 
