@@ -28,6 +28,7 @@ CREATE TABLE cameras (
     assigned_room_id INT,
     last_communication DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    connection_enabled TINYINT(1) NOT NULL DEFAULT 0,
 
     FOREIGN KEY (assigned_room_id)
         REFERENCES rooms(room_id)

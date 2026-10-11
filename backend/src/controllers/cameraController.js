@@ -128,3 +128,37 @@ exports.assignRoom = async (req, res) => {
   if (result.affectedRows === 0) return res.status(404).json({ message: 'Camera not found.' });
   res.json({ message: 'Room assigned.' });
 };
+
+exports.setCameraConnection = async (req, res) => {
+  try {
+    const cameraId = req.params.id;
+    const { enabled } = req.body;
+
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({
+        message: 'enabled must be a boolean'
+      });
+    }
+
+    const [result] = await db.query(
+      `UPDATE cameras
+       SET connection_enabled = ?
+       WHERE camera_id = ?`,
+      [enabled ? 1 : 0, cameraId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        message: 'Camera not found'
+      });
+    }
+
+    res.json({
+      camera_id: Number(cameraId),
+      connection_enabled: enabled
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
