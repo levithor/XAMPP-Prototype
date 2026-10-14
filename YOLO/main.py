@@ -34,41 +34,31 @@ def process_frame(frame, frame_count, detector, backend, camera_id):
     print(f"Camera {camera_id} | Backend response: {response}")
 
 
-def camera_worker(camera, backend):
+def camera_worker(camera, backend, stop_event):
     camera_id = camera["camera_id"]
-    camera_name = camera["camera_name"]
     rtsp_url = camera.get("rtsp_url")
 
     if not rtsp_url or not rtsp_url.strip():
-        print(
-            f"Camera {camera_id} ({camera_name}) skipped: "
-            "no RTSP URL configured."
-        )
+        print(f"Camera {camera_id}: missing RTSP URL")
         return
 
     detector = YOLODetector()
 
-    while True:
+    while not stop_event.is_set():
         source = None
 
         try:
-            print(
-                f"Camera {camera_id} ({camera_name}): "
-                "connecting..."
-            )
-
             source = CameraSource(rtsp_url.strip())
+            print(f"Camera {camera_id}: connected")
 
-            print(f"Camera {camera_id}: connected.")
-
-            frame_count = 0
             last_capture = time.monotonic()
+            frame_count = 0
 
-            while True:
+            while not stop_event.is_set():
                 frame = source.get_frame()
 
                 if frame is None:
-                    raise RuntimeError("Camera frame lost.")
+                    raise RuntimeError("Camera frame lost")
 
                 now = time.monotonic()
 
@@ -86,48 +76,81 @@ def camera_worker(camera, backend):
                     last_capture = time.monotonic()
 
         except Exception as error:
-            print(f"Camera {camera_id} error: {error}")
-            print(f"Camera {camera_id}: retrying in 5 seconds.")
-
-            time.sleep(5)
+            if not stop_event.is_set():
+                print(f"Camera {camera_id}: {error}")
+                stop_event.wait(5)
 
         finally:
             if source is not None:
                 source.release()
 
+    print(f"Camera {camera_id}: worker stopped")
+
 
 def main():
     backend = BackendClient()
 
-    cameras = backend.get_cameras()
-
-    print(f"Found {len(cameras)} cameras in the database.")
-
-    threads = []
-
-    for camera in cameras:
-        thread = threading.Thread(
-            target=camera_worker,
-            args=(camera, backend),
-            name=f"Camera-{camera['camera_id']}",
-            daemon=True
-        )
-
-        thread.start()
-        threads.append(thread)
-
-    if not threads:
-        print("No cameras found.")
-        return
-
-    print(f"Started {len(threads)} camera workers.")
+    # camera_id -> (thread, stop_event)
+    workers = {}
 
     try:
         while True:
-            time.sleep(1)
+            cameras = backend.get_cameras()
+
+            desired_ids = {
+                camera["camera_id"]
+                for camera in cameras
+                if camera.get("connection_enabled")
+                and camera.get("rtsp_url")
+            }
+
+            # Stop workers that are no longer enabled.
+            for camera_id in list(workers):
+                thread, stop_event = workers[camera_id]
+
+                if camera_id not in desired_ids:
+                    stop_event.set()
+                    thread.join(timeout=3)
+
+                    if not thread.is_alive():
+                        del workers[camera_id]
+                    else:
+                        print(
+                            f"Camera {camera_id}: "
+                            "waiting for worker to stop"
+                        )
+
+            # Start workers for newly enabled cameras.
+            for camera in cameras:
+                camera_id = camera["camera_id"]
+
+                if camera_id not in desired_ids:
+                    continue
+
+                if camera_id not in workers:
+                    stop_event = threading.Event()
+
+                    thread = threading.Thread(
+                        target=camera_worker,
+                        args=(camera, backend, stop_event),
+                        name=f"Camera-{camera_id}",
+                        daemon=True
+                    )
+
+                    workers[camera_id] = (thread, stop_event)
+                    thread.start()
+
+            time.sleep(3)
 
     except KeyboardInterrupt:
-        print("Stopping OccuVision camera workers...")
+        print("Stopping all camera workers...")
+
+    finally:
+        for thread, stop_event in workers.values():
+            stop_event.set()
+
+        for thread, stop_event in workers.values():
+            thread.join(timeout=3)
 
 
 if __name__ == "__main__":
