@@ -42,8 +42,13 @@ export async function fetchHourlyTrend(qs = '') {
   return apiFetch(`/api/analytics/hourly-trend${qs ? '?' + qs : ''}`)
 }
 
+export async function getTimeSeriesTrend(qs = '') {
+  return apiFetch(`/api/analytics/time-series-trend${qs ? '?' + qs : ''}`)
+}
+
 export async function fetchWeeklyHeatmap(qs = '') {
-  return apiFetch(`/api/analytics/weekly-heatmap${qs ? '?' + qs : ''}`)
+  const res = await apiFetch(`/api/analytics/weekly-heatmap${qs ? '?' + qs : ''}`)
+  return res.rows || []
 }
 
 export async function fetchRoomUtilization(qs = '') {

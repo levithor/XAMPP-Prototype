@@ -124,7 +124,7 @@
 
         <div class="panel">
           
-          <div class="panel-header" style="margin-bottom:0;">
+          <div class="panel-header" style="margin-bottom:0; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
             <div class="chart-tabs">
               <button class="chart-tab" :class="{ active: chartTab === 'trend' }"
                       @click="chartTab = 'trend'">
@@ -140,90 +140,110 @@
               </button>
             </div>
             
-            <span v-if="chartTab === 'trend'" class="date-badge">
-              {{ selectedLabel }}{{ selectedRoomId ? ' · ' + selectedRoomLabel : '' }}
-            </span>
+            <div v-if="chartTab === 'trend'" class="chart-header-controls">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:10px; font-weight:500; color:var(--color-text-muted); text-transform:uppercase;">mode</span>
+                <select v-model="trendMode" class="time-select forecast-select" style="width:130px; padding:4px 8px;">
+                  <option value="average">hourly average</option>
+                  <option value="interval">interval view</option>
+                </select>
+              </div>
+
+              <div v-if="trendMode === 'interval'" style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:10px; font-weight:500; color:var(--color-text-muted); text-transform:uppercase;">interval</span>
+                <select v-model="trendInterval" class="time-select forecast-select" style="width:110px; padding:4px 8px;">
+                  <option :value="15">15 minutes</option>
+                  <option :value="30">30 minutes</option>
+                </select>
+              </div>
+
+              <span class="date-badge">
+                {{ selectedLabel }}{{ selectedRoomId ? ' · ' + selectedRoomLabel : '' }}
+              </span>
+            </div>
           </div>
 
           <template v-if="chartTab === 'trend'">
             <div class="chart-legend" style="margin-top:14px;">
-              <div class="legend-item"><span class="legend-swatch"></span> avg occupancy count</div>
+              <div class="legend-item"><span class="legend-swatch"></span> {{ trendMode === 'average' ? 'avg occupancy count' : trendInterval + '-min interval count' }}</div>
               <div v-if="capacityLineY !== null" class="legend-item">
                 <span class="legend-swatch dashed"></span> capacity limit ({{ selectedRoomCapacity }})
               </div>
             </div>
             <div v-if="loading" class="chart-placeholder">loading…</div>
-            <svg v-else viewBox="0 0 700 280" style="width:100%; height:320px;">
-              <g stroke="var(--color-border)" stroke-width="0.5">
-                <line v-for="(lbl,i) in chartYLabels" :key="'gl'+i"
-                      x1="40" :y1="20 + i*42" x2="690" :y2="20 + i*42" />
-              </g>
-              <g stroke="var(--color-border)" stroke-width="1">
-                <line x1="40" y1="20" x2="40" y2="230" />
-                <line x1="40" y1="230" x2="690" y2="230" />
-              </g>
-              <g font-size="10" fill="var(--color-text-muted)" font-family="-apple-system,sans-serif">
-                <text v-for="(lbl,i) in chartYLabels" :key="'yl'+i"
-                      x="32" :y="24 + i*42" text-anchor="end">{{ lbl }}</text>
-              </g>
-              <g font-size="10" fill="var(--color-text-muted)" font-family="-apple-system,sans-serif" text-anchor="middle">
-                <text v-for="(lbl, i) in visibleXLabels" :key="lbl" :x="xPos(i)" y="250">{{ lbl }}</text>
-              </g>
-              <line v-if="capacityLineY !== null"
-                    x1="40" :y1="capacityLineY" x2="690" :y2="capacityLineY"
-                    stroke="var(--color-danger)" stroke-width="1.5" stroke-dasharray="6 5" />
-              <path v-if="chartPoints.length > 1" :d="areaPath"
-                    fill="var(--color-accent)" opacity="0.08" />
-              <path v-if="chartPoints.length > 1" :d="linePath"
-                    fill="none" stroke="var(--color-accent)" stroke-width="2.5"
-                    stroke-linecap="round" stroke-linejoin="round" />
-          
-              <circle v-for="p in chartPoints" :key="'hit-' + p.x"
-                      :cx="p.x" :cy="p.y" r="12" fill="transparent"
-                      style="cursor:pointer"
-                      @mouseenter="hoveredPoint = p"
-                      @mouseleave="hoveredPoint = null" />
-         
-              <circle v-for="p in chartPoints" :key="p.x"
-                      :cx="p.x" :cy="p.y"
-                      :r="hoveredPoint && hoveredPoint.x === p.x ? 6 : 4"
-                      fill="var(--color-accent)"
-                      style="pointer-events:none; transition:r 0.1s" />
-         
-              <g v-if="hoveredPoint" style="pointer-events:none">
-                <!-- Vertical guide line -->
-                <line :x1="hoveredPoint.x" y1="20"
-                      :x2="hoveredPoint.x" :y2="hoveredPoint.y - 8"
-                      stroke="var(--color-border)" stroke-width="1" stroke-dasharray="3 2" />
+            
+            <div v-else class="chart-scroll-container">
+              <svg :viewBox="svgViewBox" :style="{ width: svgWidth, height: '300px' }">
+                <g stroke="var(--color-border)" stroke-width="0.5">
+                  <line v-for="(lbl,i) in chartYLabels" :key="'gl'+i"
+                        x1="40" :y1="20 + i*42" :x2="svgMaxX - 20" :y2="20 + i*42" />
+                </g>
+                <g stroke="var(--color-border)" stroke-width="1">
+                  <line x1="40" y1="20" x2="40" y2="230" />
+                  <line x1="40" y1="230" :x2="svgMaxX - 20" y2="230" />
+                </g>
+                <g font-size="10" fill="var(--color-text-muted)" font-family="-apple-system,sans-serif">
+                  <text v-for="(lbl,i) in chartYLabels" :key="'yl'+i"
+                        x="32" :y="24 + i*42" text-anchor="end">{{ lbl }}</text>
+                </g>
+                <g font-size="10" fill="var(--color-text-muted)" font-family="-apple-system,sans-serif" text-anchor="middle">
+                  <text v-for="(lbl, i) in visibleXLabels" :key="lbl + '-' + i" :x="xPos(i)" y="250">{{ lbl }}</text>
+                </g>
+                <line v-if="capacityLineY !== null"
+                      x1="40" :y1="capacityLineY" :x2="svgMaxX - 20" :y2="capacityLineY"
+                      stroke="var(--color-danger)" stroke-width="1.5" stroke-dasharray="6 5" />
+                <path v-if="chartPoints.length > 1" :d="areaPath"
+                      fill="var(--color-accent)" opacity="0.08" />
+                <path v-if="chartPoints.length > 1" :d="linePath"
+                      fill="none" stroke="var(--color-accent)" stroke-width="2.5"
+                      stroke-linecap="round" stroke-linejoin="round" />
+            
+                <circle v-for="p in chartPoints" :key="'hit-' + p.x"
+                        :cx="p.x" :cy="p.y" r="12" fill="transparent"
+                        style="cursor:pointer"
+                        @mouseenter="hoveredPoint = p"
+                        @mouseleave="hoveredPoint = null" />
+           
+                <circle v-for="p in chartPoints" :key="p.x + '-' + p.y"
+                        :cx="p.x" :cy="p.y"
+                        :r="hoveredPoint && hoveredPoint.x === p.x ? 6 : 4"
+                        fill="var(--color-accent)"
+                        style="pointer-events:none; transition:r 0.1s" />
+           
+                <g v-if="hoveredPoint" style="pointer-events:none">
+                  <line :x1="hoveredPoint.x" y1="20"
+                        :x2="hoveredPoint.x" :y2="hoveredPoint.y - 8"
+                        stroke="var(--color-border)" stroke-width="1" stroke-dasharray="3 2" />
              
-                <rect
-                  :x="hoveredPoint.x > 580 ? hoveredPoint.x - 102 : hoveredPoint.x + 10"
-                  :y="Math.max(8, hoveredPoint.y - 36)"
-                  width="92" height="36" rx="6"
-                  fill="var(--color-text-primary)" opacity="0.92" />
-                <text
-                  :x="hoveredPoint.x > 580 ? hoveredPoint.x - 56 : hoveredPoint.x + 56"
-                  :y="Math.max(8, hoveredPoint.y - 36) + 14"
-                  text-anchor="middle" font-size="11" font-weight="600"
-                  fill="var(--color-surface)"
-                  font-family="-apple-system,sans-serif">
-                  {{ hourLabel(hoveredPoint.hour) }}
-                </text>
-                <text
-                  :x="hoveredPoint.x > 580 ? hoveredPoint.x - 56 : hoveredPoint.x + 56"
-                  :y="Math.max(8, hoveredPoint.y - 36) + 27"
-                  text-anchor="middle" font-size="11"
-                  fill="var(--color-surface)" opacity="0.85"
-                  font-family="-apple-system,sans-serif">
-                  {{ selectedRoomCapacity
-                       ? Math.round(hoveredPoint.count) + ' / ' + selectedRoomCapacity
-                       : Math.round(hoveredPoint.count) + ' people' }}
-                </text>
-              </g>
-              <text v-if="chartPoints.length === 0" x="365" y="130"
-                    text-anchor="middle" font-size="13" fill="var(--color-text-muted)"
-                    font-family="-apple-system,sans-serif">no data for this period</text>
-            </svg>
+                  <rect
+                    :x="hoveredPoint.x > svgMaxX - 100 ? hoveredPoint.x - 102 : hoveredPoint.x + 10"
+                    :y="Math.max(8, hoveredPoint.y - 36)"
+                    width="92" height="36" rx="6"
+                    fill="var(--color-text-primary)" opacity="0.92" />
+                  <text
+                    :x="hoveredPoint.x > svgMaxX - 100 ? hoveredPoint.x - 56 : hoveredPoint.x + 56"
+                    :y="Math.max(8, hoveredPoint.y - 36) + 14"
+                    text-anchor="middle" font-size="11" font-weight="600"
+                    fill="var(--color-surface)"
+                    font-family="-apple-system,sans-serif">
+                    {{ hoveredPoint.label }}
+                  </text>
+                  <text
+                    :x="hoveredPoint.x > svgMaxX - 100 ? hoveredPoint.x - 56 : hoveredPoint.x + 56"
+                    :y="Math.max(8, hoveredPoint.y - 36) + 27"
+                    text-anchor="middle" font-size="11"
+                    fill="var(--color-surface)" opacity="0.85"
+                    font-family="-apple-system,sans-serif">
+                    {{ selectedRoomCapacity
+                         ? Math.round(hoveredPoint.count) + ' / ' + selectedRoomCapacity
+                         : Math.round(hoveredPoint.count) + ' people' }}
+                  </text>
+                </g>
+                <text v-if="chartPoints.length === 0" :x="svgMaxX / 2" y="130"
+                      text-anchor="middle" font-size="13" fill="var(--color-text-muted)"
+                      font-family="-apple-system,sans-serif">no data for this period</text>
+              </svg>
+            </div>
           </template>
 
           <template v-else-if="chartTab === 'forecast'">
@@ -342,7 +362,6 @@
           <template v-else-if="chartTab === 'peak'">
             <div class="tab-controls">
               <div class="tab-controls-row">
-                <!-- Room picker -->
                 <div class="tab-control-group">
                   <span class="tab-control-label"><i class="ti ti-door" /> room</span>
                   <select v-model="peakRoomId" class="time-select forecast-select" style="width:150px;">
@@ -355,7 +374,6 @@
                   <span class="tab-control-label"><i class="ti ti-calendar" /> date</span>
                   <input type="date" v-model="peakDate" :max="toDateStr(today)" class="forecast-date-input" />
                 </div>
-                <!-- Hour range -->
                 <div class="tab-control-group">
                   <span class="tab-control-label"><i class="ti ti-clock" /> hours</span>
                   <div style="display:flex; align-items:center; gap:6px;">
@@ -401,7 +419,6 @@
                   }">
                   {{ idx + 1 }}
                 </div>
-                <!-- Room + time -->
                 <div style="flex:1; min-width:0;">
                   <div style="font-size:13px; font-weight:500;">{{ record.room_name }}</div>
                   <div style="font-size:11px; color:var(--color-text-muted); margin-top:2px;">
@@ -434,7 +451,6 @@
                 </div>
               </div>
 
-              <!-- Summary row -->
               <div style="display:flex; gap:20px; margin-top:14px; padding-top:12px; border-top:0.5px solid var(--color-border); flex-wrap:wrap;">
                 <div style="font-size:11px; color:var(--color-text-muted);">
                   <span style="font-weight:500; color:var(--color-text-primary);">{{ peakData[0]?.occupancy_count ?? '—' }}</span>
@@ -472,7 +488,6 @@
               <div class="alert-meta">{{ formatTime(alert.created_at) }}</div>
             </div>
           </div>
-          <!-- Pagination controls -->
           <div v-if="alertTotalPages > 1"
                style="display:flex; align-items:center; justify-content:space-between; margin-top:12px; padding-top:10px; border-top:0.5px solid var(--color-border);">
             <button
@@ -499,8 +514,15 @@
       <div class="analytics-grid" style="grid-template-columns: 0.85fr 1fr;">
 
         <div class="panel">
-          <div class="panel-header">
+          <div class="panel-header" style="display:flex; align-items:center; justify-content:space-between;">
             <span class="section-title">room utilization overview</span>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:10px; color:var(--color-text-muted); text-transform:uppercase;">mode:</span>
+              <select v-model="utilizationMode" @change="refresh" class="time-select forecast-select" style="width:110px; padding:3px 6px; font-size:11px;">
+                <option value="live">live / latest</option>
+                <option value="average">hourly avg</option>
+              </select>
+            </div>
           </div>
           <table class="data-table">
             <thead>
@@ -535,7 +557,7 @@
         <div class="panel">
           <div class="panel-header">
             <span class="section-title">weekly peak hours heatmap</span>
-            <span class="date-badge">4-week window{{ selectedRoomId ? ' · ' + selectedRoomLabel : '' }}</span>
+            <span class="date-badge">week of {{ selectedLabel }}{{ selectedRoomId ? ' · ' + selectedRoomLabel : '' }}</span>
           </div>
           <table class="heatmap-table">
             <thead>
@@ -571,11 +593,16 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { fetchHourlyTrend, fetchWeeklyHeatmap, fetchRoomUtilization, fetchRooms, fetchAlerts, fetchForecast, fetchPeakOccupancyPeriods } from '../api.js'
+import { fetchHourlyTrend, getTimeSeriesTrend, fetchWeeklyHeatmap, fetchRoomUtilization, fetchRooms, fetchAlerts, fetchForecast, fetchPeakOccupancyPeriods } from '../api.js'
 
 const rooms          = ref([])
 const selectedRoomId = ref(null)   
 const roomPickerOpen = ref(false)
+
+const trendMode        = ref('average')
+const trendInterval    = ref(15)
+const utilizationMode  = ref('live')
+const intervalTimeSeries = ref([])
 
 const selectedRoomLabel = computed(() => {
   if (!selectedRoomId.value) return 'all rooms'
@@ -679,16 +706,24 @@ async function refresh() {
     })
     if (selectedRoomId.value) p.set('room_id', selectedRoomId.value)
 
-    const [trend, heatmap, util, alertList] = await Promise.all([
+    const utilParams = new URLSearchParams(p);
+    utilParams.set('mode', utilizationMode.value);
+
+    const intervalParams = new URLSearchParams(p);
+    intervalParams.set('interval', trendInterval.value);
+
+    const [trend, intervalData, heatmap, util, alertList] = await Promise.all([
       fetchHourlyTrend(p.toString()).catch(() => []),
+      getTimeSeriesTrend(intervalParams.toString()).catch(() => []),
       fetchWeeklyHeatmap(p.toString()).catch(() => []),
-      fetchRoomUtilization(p.toString()).catch(() => []),
+      fetchRoomUtilization(utilParams.toString()).catch(() => []),
       fetchAlerts().catch(() => []),
     ])
-    hourlyTrend.value = trend
-    heatmapData.value = heatmap
-    utilization.value = util
-    alerts.value      = alertList
+    hourlyTrend.value        = trend
+    intervalTimeSeries.value = intervalData
+    heatmapData.value        = heatmap
+    utilization.value        = util
+    alerts.value             = alertList
   } catch (err) {
     console.warn('Analytics refresh failed:', err.message)
   } finally {
@@ -699,7 +734,8 @@ async function refresh() {
 let timer = null
 onMounted(() => { loadRooms(); refresh(); timer = setInterval(() => { if (isToday.value) refresh() }, 30000) })
 onUnmounted(() => clearInterval(timer))
-watch(selectedDate, refresh)
+watch([selectedDate, hourFrom, hourTo], refresh)
+watch([trendMode, trendInterval], refresh)
 
 const filteredUtilization = computed(() =>
   selectedRoomId.value
@@ -710,8 +746,6 @@ const filteredUtilization = computed(() =>
 const stats = computed(() => {
   const data = filteredUtilization.value
 
-  // Most recent single log row actually written to the database (by
-  // last_updated), as opposed to any averaged figure.
   const latest = data.reduce((best, r) => {
     if (!r.last_updated) return best
     if (!best || new Date(r.last_updated) > new Date(best.last_updated)) return r
@@ -746,7 +780,6 @@ const alertRooms = computed(() =>
 const ALERTS_PER_PAGE = 4
 const alertPage = ref(1)
 
-
 watch(alertRooms, () => { alertPage.value = 1 })
 
 const alertTotalPages = computed(() =>
@@ -757,7 +790,6 @@ const pagedAlerts = computed(() => {
   const start = (alertPage.value - 1) * ALERTS_PER_PAGE
   return alertRooms.value.slice(start, start + ALERTS_PER_PAGE)
 })
-
 
 function alertCardClass(type) {
   if (type === 'overcrowding')       return 'danger'
@@ -779,18 +811,38 @@ const visibleHours = computed(() => {
   return hrs
 })
 
-const visibleXLabels = computed(() =>
-  visibleHours.value.map(h => {
+const visibleXLabels = computed(() => {
+  if (trendMode.value === 'interval') {
+    return intervalTimeSeries.value.map(d => {
+      const dt = new Date(d.interval_time)
+      return dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    })
+  }
+  return visibleHours.value.map(h => {
     if (h === 0)  return '12am'
     if (h === 12) return '12pm'
     return h < 12 ? `${h}am` : `${h-12}pm`
   })
-)
+})
+
+const svgMaxX = computed(() => {
+  if (trendMode.value === 'interval') {
+    const count = intervalTimeSeries.value.length
+    return Math.max(860, count * 50)
+  }
+  const hourlyCount = visibleHours.value.length
+  return Math.max(860, hourlyCount * 36)
+})
+
+const svgWidth = computed(() => `${svgMaxX.value}px`)
+const svgViewBox = computed(() => `0 0 ${svgMaxX.value} 280`)
 
 function xPos(i) {
-  const n = visibleHours.value.length
-  if (n <= 1) return 365
-  return 60 + i * (630 / (n - 1))
+  const dataset = trendMode.value === 'interval' ? intervalTimeSeries.value : visibleHours.value
+  const n = dataset.length
+  if (n <= 1) return svgMaxX.value / 2
+  const usableWidth = svgMaxX.value - 60
+  return 40 + i * (usableWidth / (n - 1))
 }
 
 const selectedRoomCapacity = computed(() => {
@@ -798,11 +850,9 @@ const selectedRoomCapacity = computed(() => {
   return filteredUtilization.value[0]?.capacity ?? null
 })
 
-// Nice round upper bound for the count-based y-axis, based on the data
-// (and the room's capacity line, when one room is selected) so the chart
-// scale adapts to whatever range of headcounts is actually in play.
 const chartMaxValue = computed(() => {
-  const counts = hourlyTrend.value.map(d => Number(d.avg_occupancy_count) || 0)
+  const dataset = trendMode.value === 'interval' ? intervalTimeSeries.value : hourlyTrend.value
+  const counts = dataset.map(d => Number(d.avg_occupancy_count) || 0)
   const dataMax = counts.length ? Math.max(...counts) : 0
   const rawMax  = selectedRoomCapacity.value
     ? Math.max(dataMax, selectedRoomCapacity.value)
@@ -825,19 +875,27 @@ const capacityLineY = computed(() => {
 })
 
 const chartPoints = computed(() => {
+  const max = chartMaxValue.value
+  if (trendMode.value === 'interval') {
+    return intervalTimeSeries.value.map((d, i) => ({
+      x: xPos(i),
+      y: 230 - Math.min(max, Math.max(0, Number(d.avg_occupancy_count))) / max * 210,
+      count: Number(d.avg_occupancy_count),
+      label: new Date(d.interval_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }))
+  }
+
   const byHour = {}
   hourlyTrend.value.forEach(d => {
     const n = Number(d.avg_occupancy_count)
     if (Number.isFinite(n)) byHour[d.hour] = n
   })
-  const max = chartMaxValue.value
   return visibleHours.value
     .map((h, i) => byHour[h] !== undefined
-      ? { x: xPos(i), y: 230 - Math.min(max, Math.max(0, byHour[h])) / max * 210, count: byHour[h], hour: h }
+      ? { x: xPos(i), y: 230 - Math.min(max, Math.max(0, byHour[h])) / max * 210, count: byHour[h], label: hourLabel(h) }
       : null)
     .filter(Boolean)
 })
-
 
 const hoveredPoint = ref(null)   
 
@@ -949,7 +1007,6 @@ async function runForecast() {
 
 watch(chartTab, val => { if (val === 'forecast') runForecast() })
 
-// x-axis helpers for forecast
 const forecastHours = computed(() => forecastData.value.map(d => d.hour))
 
 const forecastXLabels = computed(() =>
@@ -1018,7 +1075,6 @@ const forecastOverCapacity = computed(() =>
   forecastPoints.value.filter(p => p.pct >= 80)
 )
 
-
 const peakData    = ref([])
 const peakLoading = ref(false)
 const peakError   = ref('')
@@ -1044,11 +1100,9 @@ async function runPeakAnalysis() {
   }
 }
 
-
 watch(chartTab, val => {
   if (val === 'peak') runPeakAnalysis()
 })
-
 
 watch([peakDate, peakRoomId, peakHourFrom, peakHourTo], () => {
   peakData.value  = []

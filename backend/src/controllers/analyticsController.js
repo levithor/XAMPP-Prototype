@@ -141,10 +141,47 @@ exports.getHourlyTrend = async (req, res) => {
     }
 };
 
+exports.getTimeSeriesTrend = async (req, res) => {
+    try {
+        const room_id      = req.query.room_id   || null;
+        const date         = req.query.date      || new Date().toISOString().slice(0, 10);
+        const hour_from    = parseInt(req.query.hour_from ?? 0);
+        const hour_to      = parseInt(req.query.hour_to   ?? 23);
+        const intervalMins = parseInt(req.query.interval ?? 15);
+
+        const roomClause = room_id ? 'AND ol.room_id = ?' : '';
+        const params = [intervalMins, intervalMins, date, hour_from, hour_to];
+        if (room_id) params.push(room_id);
+
+        const [rows] = await db.query(
+            `SELECT
+                FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(ol.recorded_at) / (? * 60)) * (? * 60)) AS interval_time,
+                ROUND(AVG(ol.occupancy_count), 1)                           AS avg_occupancy_count,
+                ROUND(AVG(ol.occupancy_count / r.capacity_limit * 100), 1)  AS avg_pct,
+                COUNT(*)                                                    AS sample_size
+             FROM occupancy_logs ol
+             JOIN rooms r ON ol.room_id = r.room_id
+             WHERE DATE(ol.recorded_at) = ?
+               AND HOUR(ol.recorded_at) BETWEEN ? AND ?
+               AND r.capacity_limit > 0
+               ${roomClause}
+             GROUP BY interval_time
+             ORDER BY interval_time ASC`,
+            params
+        );
+
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
 exports.getWeeklyHeatmap = async (req, res) => {
     try {
-        const date    = req.query.date    || new Date().toISOString().slice(0, 10);
-        const room_id = req.query.room_id || null;
+        const date      = req.query.date      || new Date().toISOString().slice(0, 10);
+        const room_id   = req.query.room_id   || null;
+        const hour_from = parseInt(req.query.hour_from ?? 0);
+        const hour_to   = parseInt(req.query.hour_to   ?? 23);
 
         const d         = new Date(date + 'T12:00:00'); 
         const dayOfWeek = d.getDay();                   
@@ -158,7 +195,7 @@ exports.getWeeklyHeatmap = async (req, res) => {
         const weekEnd   = sunday.toISOString().slice(0, 10);
 
         const roomClause = room_id ? 'AND ol.room_id = ?' : '';
-        const params = [weekStart, weekEnd];
+        const params = [weekStart, weekEnd, hour_from, hour_to];
         if (room_id) params.push(room_id);
 
         const [rows] = await db.query(
@@ -169,6 +206,7 @@ exports.getWeeklyHeatmap = async (req, res) => {
              FROM occupancy_logs ol
              JOIN rooms r ON ol.room_id = r.room_id
              WHERE DATE(ol.recorded_at) BETWEEN ? AND ?
+               AND HOUR(ol.recorded_at) BETWEEN ? AND ?
                AND r.capacity_limit > 0
                ${roomClause}
              GROUP BY DAYOFWEEK(ol.recorded_at), HOUR(ol.recorded_at)
@@ -176,7 +214,6 @@ exports.getWeeklyHeatmap = async (req, res) => {
             params
         );
 
-        // week bounds 4 heatmap, might change later. it looks kinda weird ngl. idk how to make it not look weird will have to brainstorm or sumn.
         res.json({
             week_start: weekStart,
             week_end:   weekEnd,
@@ -186,7 +223,6 @@ exports.getWeeklyHeatmap = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
-
 
 exports.getForecast = async (req, res) => {
     try {
@@ -264,15 +300,39 @@ exports.getForecast = async (req, res) => {
     }
 };
 
-
 exports.getRoomUtilization = async (req, res) => {
     try {
         const date      = req.query.date      || new Date().toISOString().slice(0, 10);
         const hour_from = parseInt(req.query.hour_from ?? 0);
         const hour_to   = parseInt(req.query.hour_to   ?? 23);
         const room_id   = req.query.room_id   || null;
+        const mode      = req.query.mode      || 'live';
 
         const roomClause = room_id ? 'AND r.room_id = ?' : '';
+
+        if (mode === 'average') {
+            const params = [date, hour_from, hour_to];
+            if (room_id) params.push(room_id);
+            const [rows] = await db.query(
+                `SELECT
+                    r.room_id,
+                    r.room_name                                     AS name,
+                    r.capacity_limit                                AS capacity,
+                    r.occupancy_threshold                           AS threshold,
+                    ROUND(AVG(ol.occupancy_count), 1)               AS occupancy_count,
+                    MAX(ol.recorded_at)                             AS last_updated
+                 FROM rooms r
+                 LEFT JOIN occupancy_logs ol ON r.room_id = ol.room_id
+                   AND DATE(ol.recorded_at) = ?
+                   AND HOUR(ol.recorded_at) BETWEEN ? AND ?
+                 WHERE 1=1 ${roomClause}
+                 GROUP BY r.room_id, r.room_name, r.capacity_limit, r.occupancy_threshold
+                 ORDER BY r.room_name`,
+                params
+            );
+            return res.json(rows);
+        }
+
         const params = [date, hour_from, hour_to, date, hour_from, hour_to];
         if (room_id) params.push(room_id);
 
