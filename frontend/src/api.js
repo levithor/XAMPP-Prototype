@@ -117,3 +117,10 @@ export async function updateCamera(cameraId, data) {
 export async function deleteCamera(cameraId) {
   return apiFetch(`/api/cameras/${cameraId}`, { method: 'DELETE' })
 }
+
+export async function setCameraConnection(cameraId, enabled) {
+  return apiFetch(`/api/cameras/${cameraId}/connection`, {
+    method: 'PATCH',
+    body: JSON.stringify({ enabled })
+  })
+}

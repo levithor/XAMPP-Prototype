@@ -402,6 +402,17 @@ async function confirmDelete(cam) {
   try { await deleteCamera(cam.camera_id); await refresh(); toast.success('camera deleted') }
   catch (err) { alert(`could not delete camera: ${err.message}`) }
 }
+
+async function toggleCameraConnection(camera) {
+  const enabled = !Boolean(camera.connection_enabled)
+
+  try {
+    await setCameraConnection(camera.camera_id, enabled)
+    await loadCameras()
+  } catch (error) {
+    console.error('Failed to change camera connection:', error)
+  }
+}
 </script>
 
 <style>
