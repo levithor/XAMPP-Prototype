@@ -14,7 +14,6 @@
           <i class="ti ti-chevron-down" style="font-size:12px; margin-left:2px;" />
         </div>
 
-        
         <div v-if="roomPickerOpen" class="room-dropdown" @click.stop>
           <div class="room-option"
                :class="{ active: selectedRoomId === null }"
@@ -30,14 +29,12 @@
           </div>
         </div>
 
-        
         <div class="filter-pill date-pill" @click.stop="togglePicker">
           <i class="ti ti-calendar" />
           {{ selectedLabel }}
           <i class="ti ti-chevron-down" style="font-size:12px; margin-left:2px;" />
         </div>
 
-        
         <div v-if="pickerOpen" class="date-dropdown" @click.stop>
           <div class="preset-row">
             <button v-for="p in presets" :key="p.key"
@@ -172,8 +169,8 @@
             </div>
             <div v-if="loading" class="chart-placeholder">loading…</div>
             
-            <div v-else class="chart-scroll-container">
-              <svg :viewBox="svgViewBox" :style="{ width: svgWidth, height: '300px' }">
+            <div v-else class="chart-scroll-container" style="width:100%; max-width:100%; overflow-x:auto; overflow-y:hidden;">
+              <svg :viewBox="svgViewBox" :style="{ width: svgWidth, minWidth: '100%', height: '300px', display: 'block' }">
                 <g stroke="var(--color-border)" stroke-width="0.5">
                   <line v-for="(lbl,i) in chartYLabels" :key="'gl'+i"
                         x1="40" :y1="20 + i*42" :x2="svgMaxX - 20" :y2="20 + i*42" />
@@ -281,7 +278,6 @@
               </div>
             </div>
 
-           
             <div class="chart-legend">
               <div class="legend-item">
                 <span style="display:inline-block;width:14px;height:3px;background:var(--color-accent);border-radius:2px;"></span>
@@ -343,7 +339,6 @@
               </circle>
             </svg>
 
-            
             <div v-if="forecastPoints.length > 0" class="forecast-summary">
               <div class="forecast-summary-item">
                 <span class="forecast-summary-value">peak: {{ forecastPeak.pct }}%</span>
@@ -776,7 +771,6 @@ const alertRooms = computed(() =>
     .filter(a => !selectedRoomId.value || a.room_id === selectedRoomId.value)
 )
 
-
 const ALERTS_PER_PAGE = 4
 const alertPage = ref(1)
 
@@ -811,12 +805,40 @@ const visibleHours = computed(() => {
   return hrs
 })
 
+const uniformIntervalSlots = computed(() => {
+  if (trendMode.value !== 'interval') return []
+  const stepMinutes = Number(trendInterval.value) || 15
+  const slots = []
+  const startMin = hourFrom.value * 60
+  const endMin = hourTo.value * 60 + 59
+  const baseDate = selectedDate.value ? `${selectedDate.value}T` : '2026-01-01T'
+
+  for (let m = startMin; m <= endMin; m += stepMinutes) {
+    const h = Math.floor(m / 60)
+    const min = m % 60
+    if (h > hourTo.value) break
+    const hh = String(h).padStart(2, '0')
+    const mm = String(min).padStart(2, '0')
+    const timeISO = `${baseDate}${hh}:${mm}:00`
+    
+    let label = ''
+    if (h === 0) label = `12:${mm} AM`
+    else if (h === 12) label = `12:${mm} PM`
+    else if (h < 12) label = `${String(h).padStart(2, '0')}:${mm} AM`
+    else label = `${String(h - 12).padStart(2, '0')}:${mm} PM`
+
+    slots.push({
+      timeISO,
+      timestamp: new Date(timeISO).getTime(),
+      label
+    })
+  }
+  return slots
+})
+
 const visibleXLabels = computed(() => {
   if (trendMode.value === 'interval') {
-    return intervalTimeSeries.value.map(d => {
-      const dt = new Date(d.interval_time)
-      return dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    })
+    return uniformIntervalSlots.value.map(s => s.label)
   }
   return visibleHours.value.map(h => {
     if (h === 0)  return '12am'
@@ -827,7 +849,7 @@ const visibleXLabels = computed(() => {
 
 const svgMaxX = computed(() => {
   if (trendMode.value === 'interval') {
-    const count = intervalTimeSeries.value.length
+    const count = uniformIntervalSlots.value.length
     return Math.max(860, count * 50)
   }
   const hourlyCount = visibleHours.value.length
@@ -838,7 +860,7 @@ const svgWidth = computed(() => `${svgMaxX.value}px`)
 const svgViewBox = computed(() => `0 0 ${svgMaxX.value} 280`)
 
 function xPos(i) {
-  const dataset = trendMode.value === 'interval' ? intervalTimeSeries.value : visibleHours.value
+  const dataset = trendMode.value === 'interval' ? uniformIntervalSlots.value : visibleHours.value
   const n = dataset.length
   if (n <= 1) return svgMaxX.value / 2
   const usableWidth = svgMaxX.value - 60
@@ -851,8 +873,9 @@ const selectedRoomCapacity = computed(() => {
 })
 
 const chartMaxValue = computed(() => {
-  const dataset = trendMode.value === 'interval' ? intervalTimeSeries.value : hourlyTrend.value
-  const counts = dataset.map(d => Number(d.avg_occupancy_count) || 0)
+  const counts = trendMode.value === 'interval'
+    ? intervalTimeSeries.value.map(d => Number(d.avg_occupancy_count) || 0)
+    : hourlyTrend.value.map(d => Number(d.avg_occupancy_count) || 0)
   const dataMax = counts.length ? Math.max(...counts) : 0
   const rawMax  = selectedRoomCapacity.value
     ? Math.max(dataMax, selectedRoomCapacity.value)
@@ -877,12 +900,42 @@ const capacityLineY = computed(() => {
 const chartPoints = computed(() => {
   const max = chartMaxValue.value
   if (trendMode.value === 'interval') {
-    return intervalTimeSeries.value.map((d, i) => ({
-      x: xPos(i),
-      y: 230 - Math.min(max, Math.max(0, Number(d.avg_occupancy_count))) / max * 210,
-      count: Number(d.avg_occupancy_count),
-      label: new Date(d.interval_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }))
+    const records = intervalTimeSeries.value
+      .map(d => ({
+        timestamp: new Date(d.interval_time).getTime(),
+        count: Number(d.avg_occupancy_count)
+      }))
+      .filter(d => Number.isFinite(d.timestamp) && Number.isFinite(d.count))
+      .sort((a, b) => a.timestamp - b.timestamp)
+
+    if (records.length === 0) return []
+
+    const toleranceMs = (Number(trendInterval.value) || 15) * 60 * 1000 * 0.5
+    const points = []
+
+    uniformIntervalSlots.value.forEach((slot, i) => {
+      let matchedRecord = null
+      let minDiff = Infinity
+
+      for (const rec of records) {
+        const diff = Math.abs(rec.timestamp - slot.timestamp)
+        if (diff <= toleranceMs && diff < minDiff) {
+          minDiff = diff
+          matchedRecord = rec
+        }
+      }
+
+      if (matchedRecord) {
+        points.push({
+          x: xPos(i),
+          y: 230 - Math.min(max, Math.max(0, matchedRecord.count)) / max * 210,
+          count: matchedRecord.count,
+          label: slot.label
+        })
+      }
+    })
+
+    return points
   }
 
   const byHour = {}
