@@ -29,7 +29,7 @@
             <span class="room-badge" :class="statusFor(room).badge">{{ statusFor(room).label }}</span>
           </div>
           <div class="room-loc">capacity limit: {{ room.capacity_limit }}</div>
-          <!-- occupancy_count comes from the merged occupancy data -->
+          
           <div class="room-count">
             {{ room.occupancy_count ?? '--' }}
             <span>/ {{ room.capacity_limit }} max</span>
@@ -40,8 +40,11 @@
                  :style="{ width: pct(room) + '%' }">
             </div>
           </div>
+          <div class="room-meta" style="font-size:11px; color:var(--color-text-muted); margin-top:8px;">
+            {{ room.cameraStatusText }}
+          </div>
           <div class="room-card-footer">
-            <span>threshold: {{ room.occupancy_threshold }}</span>
+            <span>{{ formatTime(room.recorded_at) }}</span>
             <div class="room-card-actions">
               <i class="ti ti-edit" title="edit room" @click="openEditModal(room)" />
               <i class="ti ti-trash" title="delete room" @click="confirmDelete(room)" />
@@ -68,12 +71,14 @@
               <th>capacity limit</th>
               <th>threshold</th>
               <th>current occupancy</th>
+              <th>camera status</th>
+              <th>last recorded time</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="rooms.length === 0">
-              <td colspan="5" style="padding:16px 0; color:var(--color-text-muted); font-size:13px;">
+              <td colspan="7" style="padding:16px 0; color:var(--color-text-muted); font-size:13px;">
                 no rooms configured yet
               </td>
             </tr>
@@ -82,6 +87,8 @@
               <td class="muted">{{ room.capacity_limit }} people</td>
               <td class="muted">{{ room.occupancy_threshold }} people</td>
               <td class="muted">{{ room.occupancy_count ?? '--' }}</td>
+              <td class="muted">{{ room.cameraStatusText }}</td>
+              <td class="muted">{{ formatTimeTable(room.recorded_at) }}</td>
               <td class="row-actions">
                 <i class="ti ti-edit" title="edit" @click="openEditModal(room)" style="margin-right:10px; cursor:pointer;" />
                 <i class="ti ti-trash" title="delete" @click="confirmDelete(room)" style="cursor:pointer;" />
@@ -130,11 +137,11 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { fetchRooms, fetchLatestOccupancy, addRoom, updateRoom, deleteRoom } from '../api.js'
+import { fetchRooms, fetchLatestOccupancy, fetchCameras, addRoom, updateRoom, deleteRoom } from '../api.js'
 import { useToast } from '../other/useToast.js'
+import { usePolling } from '../other/usePolling.js'
 
 const { toast } = useToast()
-import { usePolling } from '../other/usePolling.js'
 
 const rooms = ref([])
 const activeFilter = ref('all')
@@ -180,22 +187,65 @@ function pct(room) {
   return Math.min(100, Math.round((room.occupancy_count / cap) * 100))
 }
 
+function formatTime(ts) {
+  if (!ts) return 'last updated: no recent record'
+  const formatted = new Date(ts).toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+  return `last updated: ${formatted}`
+}
+
+function formatTimeTable(ts) {
+  if (!ts) return '--'
+  return new Date(ts).toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
 async function refresh() {
   try {
-    const [roomList, occupancyList] = await Promise.all([
+    const [roomList, occupancyList, cameraList] = await Promise.all([
       fetchRooms(),
-      fetchLatestOccupancy().catch(() => []) // if theres none then it should just show 0, or atleast i hope. come HERE if the occupancy count display is screwed up
+      fetchLatestOccupancy().catch(() => []),
+      fetchCameras().catch(() => [])
     ])
 
     const occupancyMap = {}
     occupancyList.forEach(o => {
-      occupancyMap[o.room_id] = o.occupancy_count ?? 0
+      occupancyMap[o.room_id] = {
+        occupancy_count: o.occupancy_count ?? 0,
+        recorded_at: o.recorded_at ?? null
+      }
     })
 
-    rooms.value = roomList.map(r => ({
-      ...r,
-      occupancy_count: occupancyMap[r.room_id] ?? null
-    }))
+    const cameraMap = {}
+    cameraList.forEach(c => {
+      if (c.assigned_room_id) {
+        cameraMap[c.assigned_room_id] = c
+      }
+    })
+
+    rooms.value = roomList.map(r => {
+      const cam = cameraMap[r.room_id]
+      let cameraStatusText = 'no camera'
+      if (cam) {
+        const isOnline = (cam.status ?? '').toLowerCase().trim() === 'online'
+        cameraStatusText = isOnline ? `cam ${cam.camera_id} online` : `cam ${cam.camera_id} offline`
+      }
+
+      return {
+        ...r,
+        occupancy_count: occupancyMap[r.room_id]?.occupancy_count ?? null,
+        recorded_at: occupancyMap[r.room_id]?.recorded_at ?? null,
+        cameraStatusText
+      }
+    })
   } catch (err) {
     console.warn('Rooms refresh failed:', err.message)
   }

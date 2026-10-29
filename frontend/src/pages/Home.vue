@@ -17,7 +17,7 @@
 
     <div class="content">
 
-     
+      <!-- Stat Cards -->
       <div class="stat-grid">
         <div class="stat-card">
           <div class="stat-icon blue"><i class="ti ti-layout-grid" /></div>
@@ -47,7 +47,7 @@
         </div>
       </div>
 
-     
+      <!-- Live Room Status -->
       <div>
         <div class="section-header">
           <span class="section-title">live room status</span>
@@ -56,7 +56,7 @@
           </router-link>
         </div>
         <div class="room-grid">
-          <div v-for="room in rooms" :key="room.room_id" class="room-card">
+          <div v-for="room in activeRoomData" :key="room.room_id" class="room-card">
             <div class="room-card-header">
               <div class="room-name">{{ room.room_name }}</div>
               <span class="room-badge" :class="statusFor(room).badge">
@@ -82,10 +82,10 @@
         </div>
       </div>
 
-      
+      <!-- Bottom Panel Grid -->
       <div class="bottom-grid">
 
-       
+        <!-- Live Alerts Feed -->
         <div class="panel">
           <div class="panel-header">
             <span class="section-title">live alerts</span>
@@ -109,7 +109,7 @@
           </div>
         </div>
 
-      
+        <!-- Camera Status Panel -->
         <div class="panel">
           <div class="panel-header">
             <span class="section-title">camera status</span>
@@ -129,7 +129,7 @@
               <div class="cam-name">{{ cam.camera_name }}</div>
               <div class="cam-loc">{{ roomName(cam.assigned_room_id) }}</div>
             </div>
-            <span v-if="cam.status === 'online'" class="cam-live">live</span>
+            <span v-if="isCamOnline(cam)" class="cam-live">live</span>
             <span v-else class="cam-live"
                   style="color:var(--color-danger); background:var(--color-danger-bg);">
               offline
@@ -172,29 +172,53 @@ let clockTimer
 onMounted(() => { updateDateTime(); clockTimer = setInterval(updateDateTime, 60000) })
 onUnmounted(() => clearInterval(clockTimer))
 
-const rooms   = ref([])   
-const roomList = ref([])  
-const cameras = ref([])   
-const alerts  = ref([])   
-const apiOnline = ref(true)
+const latestOccupancy = ref([])   
+const roomList        = ref([])  
+const cameras         = ref([])   
+const alerts          = ref([])   
+const apiOnline       = ref(true)
 
+function isCamOnline(cam) {
+  return (cam.status ?? '').toLowerCase().trim() === 'online'
+}
+
+// Combine room list with the latest occupancy log data
+const activeRoomData = computed(() => {
+  const map = new Map(latestOccupancy.value.map(o => [o.room_id, o]))
+  return roomList.value.map(r => {
+    const occ = map.get(r.room_id)
+    return {
+      room_id: r.room_id,
+      room_name: r.room_name,
+      capacity_limit: r.capacity_limit ?? occ?.capacity_limit ?? 40,
+      occupancy_count: occ?.occupancy_count ?? 0,
+      camera_id: occ?.camera_id ?? null,
+      recorded_at: occ?.recorded_at ?? null
+    }
+  })
+})
+
+// All active (unresolved) alerts
+const allActiveAlerts = computed(() =>
+  alerts.value.filter(a => !a.is_resolved)
+)
+
+// Truncated list for the live feed display widget (shows top 6)
 const activeAlerts = computed(() =>
-  alerts.value
-    .filter(a => !a.is_resolved)
-    .slice(0, 6) 
+  allActiveAlerts.value.slice(0, 6) 
 )
 
 const stats = computed(() => ({
-  totalRooms:     rooms.value.length,
-  occupiedRooms:  rooms.value.filter(r => (r.occupancy_count ?? 0) > 0).length,
-  totalOccupants: rooms.value.reduce((s, r) => s + (r.occupancy_count ?? 0), 0),
-  camerasOnline:  cameras.value.filter(c => c.status === 'online').length,
-  activeAlerts:   activeAlerts.value.length,
+  totalRooms:     roomList.value.length || latestOccupancy.value.length,
+  occupiedRooms:  activeRoomData.value.filter(r => (r.occupancy_count ?? 0) > 0).length,
+  totalOccupants: activeRoomData.value.reduce((s, r) => s + (r.occupancy_count ?? 0), 0),
+  camerasOnline:  cameras.value.filter(isCamOnline).length,
+  activeAlerts:   allActiveAlerts.value.length,
 }))
 
 const statusText = computed(() =>
   apiOnline.value
-    ? `system online · ${cameras.value.filter(c => c.status === 'online').length} cameras live`
+    ? `system online · ${stats.value.camerasOnline} cameras live`
     : 'system offline · check backend'
 )
 
@@ -242,7 +266,6 @@ function formatTime(ts) {
   return new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-
 async function refresh() {
   try {
     const [occupancy, alertList, cameraList, allRooms] = await Promise.all([
@@ -252,10 +275,10 @@ async function refresh() {
       fetchRooms().catch(() => []),
     ])
 
-    rooms.value    = occupancy
-    roomList.value = allRooms
-    cameras.value  = cameraList
-    alerts.value   = alertList.map(a => ({
+    latestOccupancy.value = occupancy
+    roomList.value        = allRooms
+    cameras.value         = cameraList
+    alerts.value          = alertList.map(a => ({
       ...a,
       is_resolved: Boolean(a.is_resolved),
       alert_type:  (a.alert_type ?? '').toLowerCase().trim(),
