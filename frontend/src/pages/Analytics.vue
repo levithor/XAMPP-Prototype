@@ -1070,7 +1070,7 @@ const forecastBandPath = computed(() => {
 const forecastPeak = computed(() => {
   if (!forecastData.value.length) return { hour: 0, pct: 0 }
   return forecastData.value.reduce((best, d) =>
-    d.predicted_pct > best.predicted_pct ? { hour: d.hour, pct: d.predicted_pct } : best,
+    d.predicted_pct > best.pct ? { hour: d.hour, pct: d.predicted_pct } : best,
     { hour: 0, pct: 0 }
   )
 })
