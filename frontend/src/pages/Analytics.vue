@@ -1,5 +1,5 @@
 <template>
-  <div class="analytics-view">
+  <div style="display:contents">
 
     <div class="topbar">
       <div>
@@ -655,7 +655,7 @@ function prevMonth() {
 }
 function nextMonth() {
   if (calMonth.value === 11) { calMonth.value = 0; calYear.value++ }
-  else calMonth.value++
+  else calYear.value++
 }
 
 const calCells = computed(() => {
@@ -730,7 +730,7 @@ async function refresh() {
 let timer = null
 onMounted(() => { loadRooms(); refresh(); timer = setInterval(() => { if (isToday.value) refresh() }, 30000) })
 onUnmounted(() => clearInterval(timer))
-watch([selectedDate, hourFrom, hourTo], refresh)
+watch([selectedDate, hourFrom, hourTo, utilizationMode], refresh)
 watch([trendMode, trendInterval], refresh)
 
 const filteredUtilization = computed(() =>
@@ -836,9 +836,9 @@ const activeXSlots = computed(() => {
 const svgMaxX = computed(() => {
   const count = activeXSlots.value.length
   if (trendMode.value === 'interval') {
-    return Math.max(700, count * 55)
+    return Math.max(860, count * 55)
   }
-  return Math.max(700, count * 40)
+  return Math.max(860, count * 45)
 })
 
 const svgWidth = computed(() => `${svgMaxX.value}px`)
@@ -932,25 +932,20 @@ const HEATMAP_HOURS     = [8,10,12,14,16,18,20,22]
 const heatmapHourLabels = ['8am','10am','12pm','2pm','4pm','6pm','8pm','10pm']
 const DAY_LABELS        = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 
-const fallbackHeatmap = [
-  { day: 'Mon', values: [10,40,75,80,70,30,5,0] },
-  { day: 'Tue', values: [15,55,85,90,80,45,10,0] },
-  { day: 'Wed', values: [20,60,100,95,88,50,15,0] },
-  { day: 'Thu', values: [12,45,70,75,65,35,8,0] },
-  { day: 'Fri', values: [18,50,80,85,72,20,5,0] },
-]
-
 const heatmapRows = computed(() => {
-  if (!heatmapData.value.length) return fallbackHeatmap
   const lookup = {}
-  heatmapData.value.forEach(r => {
-    lookup[r.day_of_week] = lookup[r.day_of_week] || {}
-    lookup[r.day_of_week][r.hour] = Math.round(r.avg_pct)
-  })
-  const days = Object.keys(lookup).map(Number).sort((a,b) => a-b)
-  return days.map(dow => ({
-    day: DAY_LABELS[dow - 1],
-    values: HEATMAP_HOURS.map(h => lookup[dow][h] ?? 0)
+  if (heatmapData.value && heatmapData.value.length > 0) {
+    heatmapData.value.forEach(r => {
+      lookup[r.day_of_week] = lookup[r.day_of_week] || {}
+      lookup[r.day_of_week][r.hour] = Math.round(r.avg_pct)
+    })
+  }
+  const defaultDays = [2, 3, 4, 5, 6]
+  const activeDays = Object.keys(lookup).length > 0 ? Object.keys(lookup).map(Number).sort((a,b) => a-b) : defaultDays
+
+  return activeDays.map(dow => ({
+    day: DAY_LABELS[dow - 1] || 'Mon',
+    values: HEATMAP_HOURS.map(h => lookup[dow]?.[h] ?? 0)
   }))
 })
 
@@ -1037,7 +1032,7 @@ function forecastXPos(i) {
   return 60 + i * (630 / (n - 1))
 }
 
-function forecastHourLabel(h) {
+const forecastHourLabel = h => {
   if (h === 0)  return '12am'
   if (h === 12) return '12pm'
   return h < 12 ? `${h}am` : `${h - 12}pm`
