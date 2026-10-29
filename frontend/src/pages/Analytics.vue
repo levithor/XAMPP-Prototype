@@ -1,5 +1,5 @@
 <template>
-  <div style="display:contents">
+  <div class="analytics-view">
 
     <div class="topbar">
       <div>
@@ -119,7 +119,7 @@
 
       <div class="analytics-grid">
 
-        <div class="panel">
+        <div class="panel main-chart-panel" style="min-width: 0; overflow-x: hidden;">
           
           <div class="panel-header" style="margin-bottom:0; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
             <div class="chart-tabs">
@@ -169,77 +169,79 @@
             </div>
             <div v-if="loading" class="chart-placeholder">loading…</div>
             
-            <div v-else class="chart-scroll-container" style="width:100%; max-width:100%; overflow-x:auto; overflow-y:hidden;">
-              <svg :viewBox="svgViewBox" :style="{ width: svgWidth, minWidth: '100%', height: '300px', display: 'block' }">
-                <g stroke="var(--color-border)" stroke-width="0.5">
-                  <line v-for="(lbl,i) in chartYLabels" :key="'gl'+i"
-                        x1="40" :y1="20 + i*42" :x2="svgMaxX - 20" :y2="20 + i*42" />
-                </g>
-                <g stroke="var(--color-border)" stroke-width="1">
-                  <line x1="40" y1="20" x2="40" y2="230" />
-                  <line x1="40" y1="230" :x2="svgMaxX - 20" y2="230" />
-                </g>
-                <g font-size="10" fill="var(--color-text-muted)" font-family="-apple-system,sans-serif">
-                  <text v-for="(lbl,i) in chartYLabels" :key="'yl'+i"
-                        x="32" :y="24 + i*42" text-anchor="end">{{ lbl }}</text>
-                </g>
-                <g font-size="10" fill="var(--color-text-muted)" font-family="-apple-system,sans-serif" text-anchor="middle">
-                  <text v-for="(lbl, i) in visibleXLabels" :key="lbl + '-' + i" :x="xPos(i)" y="250">{{ lbl }}</text>
-                </g>
-                <line v-if="capacityLineY !== null"
-                      x1="40" :y1="capacityLineY" :x2="svgMaxX - 20" :y2="capacityLineY"
-                      stroke="var(--color-danger)" stroke-width="1.5" stroke-dasharray="6 5" />
-                <path v-if="chartPoints.length > 1" :d="areaPath"
-                      fill="var(--color-accent)" opacity="0.08" />
-                <path v-if="chartPoints.length > 1" :d="linePath"
-                      fill="none" stroke="var(--color-accent)" stroke-width="2.5"
-                      stroke-linecap="round" stroke-linejoin="round" />
-            
-                <circle v-for="p in chartPoints" :key="'hit-' + p.x"
-                        :cx="p.x" :cy="p.y" r="12" fill="transparent"
-                        style="cursor:pointer"
-                        @mouseenter="hoveredPoint = p"
-                        @mouseleave="hoveredPoint = null" />
-           
-                <circle v-for="p in chartPoints" :key="p.x + '-' + p.y"
-                        :cx="p.x" :cy="p.y"
-                        :r="hoveredPoint && hoveredPoint.x === p.x ? 6 : 4"
-                        fill="var(--color-accent)"
-                        style="pointer-events:none; transition:r 0.1s" />
-           
-                <g v-if="hoveredPoint" style="pointer-events:none">
-                  <line :x1="hoveredPoint.x" y1="20"
-                        :x2="hoveredPoint.x" :y2="hoveredPoint.y - 8"
-                        stroke="var(--color-border)" stroke-width="1" stroke-dasharray="3 2" />
+            <div v-else class="chart-scroll-wrapper" style="width: 100%; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;">
+              <div style="display: inline-block; min-width: 100%;">
+                <svg :viewBox="svgViewBox" :style="{ width: svgWidth, height: '280px', display: 'block' }">
+                  <g stroke="var(--color-border)" stroke-width="0.5">
+                    <line v-for="(lbl,i) in chartYLabels" :key="'gl'+i"
+                          x1="40" :y1="20 + i*42" :x2="svgMaxX - 20" :y2="20 + i*42" />
+                  </g>
+                  <g stroke="var(--color-border)" stroke-width="1">
+                    <line x1="40" y1="20" x2="40" y2="230" />
+                    <line x1="40" y1="230" :x2="svgMaxX - 20" y2="230" />
+                  </g>
+                  <g font-size="10" fill="var(--color-text-muted)" font-family="-apple-system,sans-serif">
+                    <text v-for="(lbl,i) in chartYLabels" :key="'yl'+i"
+                          x="32" :y="24 + i*42" text-anchor="end">{{ lbl }}</text>
+                  </g>
+                  <g font-size="10" fill="var(--color-text-muted)" font-family="-apple-system,sans-serif" text-anchor="middle">
+                    <text v-for="(slot, i) in activeXSlots" :key="slot + '-' + i" :x="xPos(i)" y="250">{{ slot }}</text>
+                  </g>
+                  <line v-if="capacityLineY !== null"
+                        x1="40" :y1="capacityLineY" :x2="svgMaxX - 20" :y2="capacityLineY"
+                        stroke="var(--color-danger)" stroke-width="1.5" stroke-dasharray="6 5" />
+                  <path v-if="chartPoints.length > 1" :d="areaPath"
+                        fill="var(--color-accent)" opacity="0.08" />
+                  <path v-if="chartPoints.length > 1" :d="linePath"
+                        fill="none" stroke="var(--color-accent)" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round" />
+              
+                  <circle v-for="p in chartPoints" :key="'hit-' + p.x"
+                          :cx="p.x" :cy="p.y" r="12" fill="transparent"
+                          style="cursor:pointer"
+                          @mouseenter="hoveredPoint = p"
+                          @mouseleave="hoveredPoint = null" />
              
-                  <rect
-                    :x="hoveredPoint.x > svgMaxX - 100 ? hoveredPoint.x - 102 : hoveredPoint.x + 10"
-                    :y="Math.max(8, hoveredPoint.y - 36)"
-                    width="92" height="36" rx="6"
-                    fill="var(--color-text-primary)" opacity="0.92" />
-                  <text
-                    :x="hoveredPoint.x > svgMaxX - 100 ? hoveredPoint.x - 56 : hoveredPoint.x + 56"
-                    :y="Math.max(8, hoveredPoint.y - 36) + 14"
-                    text-anchor="middle" font-size="11" font-weight="600"
-                    fill="var(--color-surface)"
-                    font-family="-apple-system,sans-serif">
-                    {{ hoveredPoint.label }}
-                  </text>
-                  <text
-                    :x="hoveredPoint.x > svgMaxX - 100 ? hoveredPoint.x - 56 : hoveredPoint.x + 56"
-                    :y="Math.max(8, hoveredPoint.y - 36) + 27"
-                    text-anchor="middle" font-size="11"
-                    fill="var(--color-surface)" opacity="0.85"
-                    font-family="-apple-system,sans-serif">
-                    {{ selectedRoomCapacity
-                         ? Math.round(hoveredPoint.count) + ' / ' + selectedRoomCapacity
-                         : Math.round(hoveredPoint.count) + ' people' }}
-                  </text>
-                </g>
-                <text v-if="chartPoints.length === 0" :x="svgMaxX / 2" y="130"
-                      text-anchor="middle" font-size="13" fill="var(--color-text-muted)"
-                      font-family="-apple-system,sans-serif">no data for this period</text>
-              </svg>
+                  <circle v-for="p in chartPoints" :key="p.x + '-' + p.y"
+                          :cx="p.x" :cy="p.y"
+                          :r="hoveredPoint && hoveredPoint.x === p.x ? 6 : 4"
+                          fill="var(--color-accent)"
+                          style="pointer-events:none; transition:r 0.1s" />
+             
+                  <g v-if="hoveredPoint" style="pointer-events:none">
+                    <line :x1="hoveredPoint.x" y1="20"
+                          :x2="hoveredPoint.x" :y2="hoveredPoint.y - 8"
+                          stroke="var(--color-border)" stroke-width="1" stroke-dasharray="3 2" />
+               
+                    <rect
+                      :x="hoveredPoint.x > svgMaxX - 100 ? hoveredPoint.x - 102 : hoveredPoint.x + 10"
+                      :y="Math.max(8, hoveredPoint.y - 36)"
+                      width="92" height="36" rx="6"
+                      fill="var(--color-text-primary)" opacity="0.92" />
+                    <text
+                      :x="hoveredPoint.x > svgMaxX - 100 ? hoveredPoint.x - 56 : hoveredPoint.x + 56"
+                      :y="Math.max(8, hoveredPoint.y - 36) + 14"
+                      text-anchor="middle" font-size="11" font-weight="600"
+                      fill="var(--color-surface)"
+                      font-family="-apple-system,sans-serif">
+                      {{ hoveredPoint.label }}
+                    </text>
+                    <text
+                      :x="hoveredPoint.x > svgMaxX - 100 ? hoveredPoint.x - 56 : hoveredPoint.x + 56"
+                      :y="Math.max(8, hoveredPoint.y - 36) + 27"
+                      text-anchor="middle" font-size="11"
+                      fill="var(--color-surface)" opacity="0.85"
+                      font-family="-apple-system,sans-serif">
+                      {{ selectedRoomCapacity
+                           ? Math.round(hoveredPoint.count) + ' / ' + selectedRoomCapacity
+                           : Math.round(hoveredPoint.count) + ' people' }}
+                    </text>
+                  </g>
+                  <text v-if="chartPoints.length === 0" :x="svgMaxX / 2" y="130"
+                        text-anchor="middle" font-size="13" fill="var(--color-text-muted)"
+                        font-family="-apple-system,sans-serif">no data for this period</text>
+                </svg>
+              </div>
             </div>
           </template>
 
@@ -400,7 +402,6 @@
               <span>click analyse to find the top 5 peak occupancy periods</span>
             </div>
             <div v-else>
-              
               <div v-for="(record, idx) in peakData" :key="record.log_id ?? idx"
                    style="display:flex; align-items:center; gap:14px; padding:12px 0; border-bottom:0.5px solid var(--color-border);">
                 
@@ -805,40 +806,25 @@ const visibleHours = computed(() => {
   return hrs
 })
 
-const uniformIntervalSlots = computed(() => {
-  if (trendMode.value !== 'interval') return []
-  const stepMinutes = Number(trendInterval.value) || 15
-  const slots = []
-  const startMin = hourFrom.value * 60
-  const endMin = hourTo.value * 60 + 59
-  const baseDate = selectedDate.value ? `${selectedDate.value}T` : '2026-01-01T'
-
-  for (let m = startMin; m <= endMin; m += stepMinutes) {
-    const h = Math.floor(m / 60)
-    const min = m % 60
-    if (h > hourTo.value) break
-    const hh = String(h).padStart(2, '0')
-    const mm = String(min).padStart(2, '0')
-    const timeISO = `${baseDate}${hh}:${mm}:00`
-    
-    let label = ''
-    if (h === 0) label = `12:${mm} AM`
-    else if (h === 12) label = `12:${mm} PM`
-    else if (h < 12) label = `${String(h).padStart(2, '0')}:${mm} AM`
-    else label = `${String(h - 12).padStart(2, '0')}:${mm} PM`
-
-    slots.push({
-      timeISO,
-      timestamp: new Date(timeISO).getTime(),
-      label
-    })
+const intervalTimeBounds = computed(() => {
+  if (!intervalTimeSeries.value.length) return { start: null, end: null, stepMs: trendInterval.value * 60 * 1000 }
+  const timestamps = intervalTimeSeries.value.map(d => new Date(d.interval_time).getTime()).sort((a, b) => a - b)
+  return {
+    start: timestamps[0],
+    end: timestamps[timestamps.length - 1],
+    stepMs: trendInterval.value * 60 * 1000
   }
-  return slots
 })
 
-const visibleXLabels = computed(() => {
+const activeXSlots = computed(() => {
   if (trendMode.value === 'interval') {
-    return uniformIntervalSlots.value.map(s => s.label)
+    const { start, end, stepMs } = intervalTimeBounds.value
+    if (!start || !end) return []
+    const slots = []
+    for (let cur = start; cur <= end; cur += stepMs) {
+      slots.push(new Date(cur).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
+    }
+    return slots
   }
   return visibleHours.value.map(h => {
     if (h === 0)  return '12am'
@@ -848,22 +834,20 @@ const visibleXLabels = computed(() => {
 })
 
 const svgMaxX = computed(() => {
+  const count = activeXSlots.value.length
   if (trendMode.value === 'interval') {
-    const count = uniformIntervalSlots.value.length
-    return Math.max(860, count * 50)
+    return Math.max(700, count * 55)
   }
-  const hourlyCount = visibleHours.value.length
-  return Math.max(860, hourlyCount * 36)
+  return Math.max(700, count * 40)
 })
 
 const svgWidth = computed(() => `${svgMaxX.value}px`)
 const svgViewBox = computed(() => `0 0 ${svgMaxX.value} 280`)
 
 function xPos(i) {
-  const dataset = trendMode.value === 'interval' ? uniformIntervalSlots.value : visibleHours.value
-  const n = dataset.length
+  const n = activeXSlots.value.length
   if (n <= 1) return svgMaxX.value / 2
-  const usableWidth = svgMaxX.value - 60
+  const usableWidth = svgMaxX.value - 80
   return 40 + i * (usableWidth / (n - 1))
 }
 
@@ -873,9 +857,8 @@ const selectedRoomCapacity = computed(() => {
 })
 
 const chartMaxValue = computed(() => {
-  const counts = trendMode.value === 'interval'
-    ? intervalTimeSeries.value.map(d => Number(d.avg_occupancy_count) || 0)
-    : hourlyTrend.value.map(d => Number(d.avg_occupancy_count) || 0)
+  const dataset = trendMode.value === 'interval' ? intervalTimeSeries.value : hourlyTrend.value
+  const counts = dataset.map(d => Number(d.avg_occupancy_count) || 0)
   const dataMax = counts.length ? Math.max(...counts) : 0
   const rawMax  = selectedRoomCapacity.value
     ? Math.max(dataMax, selectedRoomCapacity.value)
@@ -900,42 +883,20 @@ const capacityLineY = computed(() => {
 const chartPoints = computed(() => {
   const max = chartMaxValue.value
   if (trendMode.value === 'interval') {
-    const records = intervalTimeSeries.value
-      .map(d => ({
-        timestamp: new Date(d.interval_time).getTime(),
-        count: Number(d.avg_occupancy_count)
-      }))
-      .filter(d => Number.isFinite(d.timestamp) && Number.isFinite(d.count))
-      .sort((a, b) => a.timestamp - b.timestamp)
-
-    if (records.length === 0) return []
-
-    const toleranceMs = (Number(trendInterval.value) || 15) * 60 * 1000 * 0.5
-    const points = []
-
-    uniformIntervalSlots.value.forEach((slot, i) => {
-      let matchedRecord = null
-      let minDiff = Infinity
-
-      for (const rec of records) {
-        const diff = Math.abs(rec.timestamp - slot.timestamp)
-        if (diff <= toleranceMs && diff < minDiff) {
-          minDiff = diff
-          matchedRecord = rec
-        }
-      }
-
-      if (matchedRecord) {
-        points.push({
-          x: xPos(i),
-          y: 230 - Math.min(max, Math.max(0, matchedRecord.count)) / max * 210,
-          count: matchedRecord.count,
-          label: slot.label
-        })
+    const { start, stepMs } = intervalTimeBounds.value
+    if (!start) return []
+    
+    return intervalTimeSeries.value.map(d => {
+      const timeMs = new Date(d.interval_time).getTime()
+      const slotIndex = Math.round((timeMs - start) / stepMs)
+      const val = Number(d.avg_occupancy_count)
+      return {
+        x: xPos(slotIndex),
+        y: 230 - Math.min(max, Math.max(0, val)) / max * 210,
+        count: val,
+        label: new Date(d.interval_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }
     })
-
-    return points
   }
 
   const byHour = {}
