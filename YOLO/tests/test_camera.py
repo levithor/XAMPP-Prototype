@@ -1,25 +1,38 @@
+import os
+
+os.environ["OPENCV_LOG_LEVEL"] = "SILENT"
+
 import cv2
+from capture.camera_source import CameraConnectionError, CameraSource
 
-URL = "rtsp://admin:Dahua01$@192.168.1.108:554/cam/realmonitor?channel=1&subtype=1"
 
-cap = cv2.VideoCapture(URL)
+rtsp_url = os.getenv("RTSP_TEST_URL")
 
-if not cap.isOpened():
-    print("Could not connect.")
-    exit()
 
-while True:
+def main():
+    if not rtsp_url:
+        raise SystemExit("Set RTSP_TEST_URL to a camera stream before running this manual test.")
 
-    ret, frame = cap.read()
+    try:
+        source = CameraSource(rtsp_url)
+    except CameraConnectionError:
+        raise SystemExit("Could not connect to camera.") from None
 
-    if not ret:
-        print("No frame")
-        break
+    try:
+        while True:
+            frame = source.get_frame()
+            if frame is None:
+                print("No frame")
+                break
 
-    cv2.imshow("Camera", frame)
+            cv2.imshow("Camera", frame)
 
-    if cv2.waitKey(1) == ord("q"):
-        break
+            if cv2.waitKey(1) == ord("q"):
+                break
+    finally:
+        source.release()
+        cv2.destroyAllWindows()
 
-cap.release()
-cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    main()

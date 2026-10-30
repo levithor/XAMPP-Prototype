@@ -22,6 +22,8 @@ const analyticsRoutes =
     require('./routes/analyticsRoutes');
 const imageRoutes =
     require('./routes/imageRoutes');
+const cameraServiceRoutes =
+    require('./routes/cameraServiceRoutes');
 
 app.use('/api/rooms',     roomRoutes);
 app.use('/api/cameras',   cameraRoutes);
@@ -30,6 +32,7 @@ app.use('/api/alerts',    alertRoutes);
 app.use('/api/admins',    adminRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/images',    imageRoutes);
+app.use('/api/camera-service', cameraServiceRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {

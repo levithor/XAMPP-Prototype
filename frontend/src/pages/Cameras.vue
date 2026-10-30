@@ -55,7 +55,10 @@
           class="room-card" :class="accentFor(cam)">
           <div class="room-card-header">
             <div class="room-name">{{ cam.camera_name }}</div>
-            <span class="room-badge" :class="statusBadge(cam)">{{ cam.status }}</span>
+            <span class="room-badge" :class="statusBadge(cam)">data {{ cam.status }}</span>
+          </div>
+          <div class="camera-connection-state">
+            requested: <strong>{{ desiredStateLabel(cam) }}</strong>
           </div>
           <div class="room-loc">
             {{ roomName(cam.assigned_room_id) || 'unassigned' }}
@@ -70,6 +73,18 @@
               <i class="ti ti-edit" title="edit camera" @click="openEditModal(cam)" />
               <i class="ti ti-trash" title="delete camera" @click="confirmDelete(cam)" />
             </div>
+          </div>
+          <div class="camera-connection-actions">
+            <button
+              class="camera-connection-button"
+              :disabled="connectionPending[cam.camera_id]"
+              @click="toggleConnection(cam)"
+            >
+              {{ connectionPending[cam.camera_id] ? 'please wait…' : (isDesiredConnected(cam) ? 'disconnect' : 'connect') }}
+            </button>
+            <p v-if="connectionErrors[cam.camera_id]" class="camera-connection-error">
+              {{ connectionErrors[cam.camera_id] }}
+            </p>
           </div>
         </div>
 
@@ -91,14 +106,16 @@
               <th>camera name</th>
               <th>rtsp url</th>
               <th>assigned room</th>
-              <th>status</th>
+              <th>data status</th>
+              <th>requested</th>
               <th>last communication</th>
+              <th>connection</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="cameras.length === 0">
-              <td colspan="6" style="padding:16px 0; color:var(--color-text-muted); font-size:13px;">
+              <td colspan="8" style="padding:16px 0; color:var(--color-text-muted); font-size:13px;">
                 no cameras configured yet
               </td>
             </tr>
@@ -109,7 +126,20 @@
               <td>
                 <span class="room-badge" :class="statusBadge(cam)">{{ cam.status }}</span>
               </td>
+              <td>{{ desiredStateLabel(cam) }}</td>
               <td class="muted">{{ lastSeen(cam.last_communication) }}</td>
+              <td>
+                <button
+                  class="camera-connection-button"
+                  :disabled="connectionPending[cam.camera_id]"
+                  @click="toggleConnection(cam)"
+                >
+                  {{ connectionPending[cam.camera_id] ? 'please wait…' : (isDesiredConnected(cam) ? 'disconnect' : 'connect') }}
+                </button>
+                <div v-if="connectionErrors[cam.camera_id]" class="camera-connection-error">
+                  {{ connectionErrors[cam.camera_id] }}
+                </div>
+              </td>
               <td class="row-actions">
                 <i class="ti ti-edit" title="edit" @click="openEditModal(cam)" style="margin-right:10px; cursor:pointer;" />
                 <i class="ti ti-trash" title="delete" @click="confirmDelete(cam)" style="cursor:pointer;" />
@@ -184,8 +214,13 @@
 
               <input
                 v-model="form.rtsp_url"
-                placeholder="rtsp://192.168.1.101:554/stream"
+                :placeholder="editingCamera ? 'leave blank to keep the current RTSP URL' : 'rtsp://192.168.1.101:554/stream'"
+                autocomplete="off"
+                spellcheck="false"
               />
+              <small v-if="editingCamera" class="rtsp-edit-hint">
+                The saved URL is hidden to protect credentials. Enter a new URL only to replace it.
+              </small>
             </div>
 
           </template>
@@ -259,7 +294,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { fetchCameras, addCamera, updateCamera, deleteCamera, fetchRooms } from '../api.js'
+import { fetchCameras, addCamera, updateCamera, setCameraConnection, deleteCamera, fetchRooms } from '../api.js'
 import { useToast } from '../other/useToast.js'
 import { usePolling } from '../other/usePolling.js'
 
@@ -269,6 +304,8 @@ const activeFilter  = ref('all')
 const showModal     = ref(false)
 const editingCamera = ref(null)
 const modalError    = ref('')
+const connectionPending = ref({})
+const connectionErrors = ref({})
 const { toast }     = useToast()
 
 const form = ref({
@@ -313,6 +350,14 @@ function statusBadge(cam) {
   return cam.status === 'online' ? 'badge-success' : 'badge-danger'
 }
 
+function isDesiredConnected(cam) {
+  return cam.desired_connection_state === 'connected'
+}
+
+function desiredStateLabel(cam) {
+  return isDesiredConnected(cam) ? 'connected' : 'disconnected'
+}
+
 function accentFor(cam) {
   return cam.status === 'online' ? 'accent-success' : 'accent-danger'
 }
@@ -350,7 +395,7 @@ usePolling(refresh, 10000)
 
 function openAddModal() {
   editingCamera.value = null
-  form.value = { camera_name: '', rtsp_url: '', assigned_room_id: null }
+  form.value = { camera_name: '', rtsp_url: '', assigned_room_id: null, connection_type: 'RTSP' }
   modalError.value = ''
   showModal.value = true
 }
@@ -359,8 +404,9 @@ function openEditModal(cam) {
   editingCamera.value = cam
   form.value = {
     camera_name:      cam.camera_name      || '',
-    rtsp_url:         cam.rtsp_url         || '',
+    rtsp_url:         '',
     assigned_room_id: cam.assigned_room_id ?? null,
+    connection_type:  'RTSP',
   }
   modalError.value = ''
   showModal.value = true
@@ -380,8 +426,11 @@ async function submitModal() {
   try {
     const payload = {
       camera_name:      form.value.camera_name,
-      rtsp_url:         form.value.rtsp_url,
       assigned_room_id: form.value.assigned_room_id,
+    }
+    const newRtspUrl = form.value.rtsp_url.trim()
+    if (newRtspUrl || !editingCamera.value) {
+      payload.rtsp_url = newRtspUrl || null
     }
     if (editingCamera.value) {
       await updateCamera(editingCamera.value.camera_id, payload)
@@ -394,6 +443,25 @@ async function submitModal() {
     toast.success(`camera ${action} successfully`)
   } catch (err) {
     modalError.value = `error: ${err.message}`
+  }
+}
+
+async function toggleConnection(cam) {
+  const cameraId = cam.camera_id
+  if (connectionPending.value[cameraId]) return
+
+  const desiredState = isDesiredConnected(cam) ? 'disconnected' : 'connected'
+  connectionPending.value[cameraId] = true
+  delete connectionErrors.value[cameraId]
+  try {
+    const result = await setCameraConnection(cameraId, desiredState)
+    cam.desired_connection_state = result.desired_connection_state
+    await refresh()
+    toast.success(`camera ${desiredState} request accepted`)
+  } catch (err) {
+    connectionErrors.value[cameraId] = err.message
+  } finally {
+    connectionPending.value[cameraId] = false
   }
 }
 

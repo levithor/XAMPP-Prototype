@@ -8,7 +8,16 @@ async function apiFetch(path, options = {}) {
     ...(options.headers || {}),
   }
   const res = await fetch(path, { ...options, headers })
-  if (!res.ok) throw new Error(`${options.method || 'GET'} ${path}: ${res.status}`)
+  if (!res.ok) {
+    let message = `${options.method || 'GET'} ${path}: ${res.status}`
+    try {
+      const body = await res.json()
+      message = body.error || body.message || message
+    } catch {
+      // Keep the HTTP status when the server does not return JSON.
+    }
+    throw new Error(message)
+  }
   return res.json()
 }
 
@@ -111,6 +120,13 @@ export async function updateCamera(cameraId, data) {
   return apiFetch(`/api/cameras/${cameraId}`, {
     method: 'PUT',
     body: JSON.stringify(data),
+  })
+}
+
+export async function setCameraConnection(cameraId, desiredConnectionState) {
+  return apiFetch(`/api/cameras/${cameraId}/connection`, {
+    method: 'PUT',
+    body: JSON.stringify({ desired_connection_state: desiredConnectionState }),
   })
 }
 

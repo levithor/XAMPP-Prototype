@@ -25,6 +25,7 @@ CREATE TABLE cameras (
     camera_name VARCHAR(100) NOT NULL,
     rtsp_url VARCHAR(500),
     status VARCHAR(20),
+    desired_connection_state VARCHAR(20) NOT NULL DEFAULT 'disconnected',
     assigned_room_id INT,
     last_communication DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

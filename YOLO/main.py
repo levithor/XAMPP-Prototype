@@ -1,156 +1,61 @@
-import time
+import logging
+import os
+import signal
 import threading
 
+os.environ["OPENCV_LOG_LEVEL"] = "SILENT"
+
 from api.backend_client import BackendClient
+from camera_manager import CameraManager
+from camera_worker import run_camera_worker
 from detection.yolo_detector import YOLODetector
 from capture.camera_source import CameraSource
 
-FRAME_INTERVAL = 10
-SAVE_DETECTIONS = False
-OUTPUT_DIR = "output"
+
+FRAME_INTERVAL_SECONDS = float(os.getenv("FRAME_INTERVAL_SECONDS", "10"))
+CAMERA_POLL_INTERVAL_SECONDS = float(os.getenv("CAMERA_POLL_INTERVAL_SECONDS", "2"))
+if FRAME_INTERVAL_SECONDS <= 0 or CAMERA_POLL_INTERVAL_SECONDS <= 0:
+    raise ValueError("Frame and camera polling intervals must be greater than zero.")
 
 
-def process_frame(frame, frame_count, detector, backend, camera_id):
-    people, results = detector.detect_people(frame)
-
-    print(
-        f"Camera {camera_id} | "
-        f"Frame {frame_count} | "
-        f"People detected: {people}"
-    )
-
-    if SAVE_DETECTIONS:
-        detector.save_detection(
-            results,
-            f"{OUTPUT_DIR}/camera_{camera_id}/"
-            f"frame_{frame_count:04d}.jpg"
+def create_worker(config, stop_event, backend):
+    def run():
+        run_camera_worker(
+            config,
+            stop_event,
+            backend,
+            CameraSource,
+            YOLODetector,
+            FRAME_INTERVAL_SECONDS,
         )
 
-    response = backend.send_occupancy(
-        camera_id=camera_id,
-        people=people
-    )
-
-    print(f"Camera {camera_id} | Backend response: {response}")
-
-
-def camera_worker(camera, backend, stop_event):
-    camera_id = camera["camera_id"]
-    rtsp_url = camera.get("rtsp_url")
-
-    if not rtsp_url or not rtsp_url.strip():
-        print(f"Camera {camera_id}: missing RTSP URL")
-        return
-
-    detector = YOLODetector()
-
-    while not stop_event.is_set():
-        source = None
-
-        try:
-            source = CameraSource(rtsp_url.strip())
-            print(f"Camera {camera_id}: connected")
-
-            last_capture = time.monotonic()
-            frame_count = 0
-
-            while not stop_event.is_set():
-                frame = source.get_frame()
-
-                if frame is None:
-                    raise RuntimeError("Camera frame lost")
-
-                now = time.monotonic()
-
-                if now - last_capture >= FRAME_INTERVAL:
-                    frame_count += 1
-
-                    process_frame(
-                        frame,
-                        frame_count,
-                        detector,
-                        backend,
-                        camera_id
-                    )
-
-                    last_capture = time.monotonic()
-
-        except Exception as error:
-            if not stop_event.is_set():
-                print(f"Camera {camera_id}: {error}")
-                stop_event.wait(5)
-
-        finally:
-            if source is not None:
-                source.release()
-
-    print(f"Camera {camera_id}: worker stopped")
+    return run
 
 
 def main():
+    logging.basicConfig(
+        level=os.getenv("LOG_LEVEL", "INFO").upper(),
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
     backend = BackendClient()
+    backend.initialize_camera_service()
 
-    # camera_id -> (thread, stop_event)
-    workers = {}
+    stop_event = threading.Event()
+    manager = CameraManager(backend, lambda config, event: create_worker(config, event, backend))
+
+    def request_shutdown(signum, frame):
+        logging.info("Shutdown requested.")
+        stop_event.set()
+
+    signal.signal(signal.SIGINT, request_shutdown)
+    if hasattr(signal, "SIGTERM"):
+        signal.signal(signal.SIGTERM, request_shutdown)
 
     try:
-        while True:
-            cameras = backend.get_cameras()
-
-            desired_ids = {
-                camera["camera_id"]
-                for camera in cameras
-                if camera.get("connection_enabled")
-                and camera.get("rtsp_url")
-            }
-
-            # Stop workers that are no longer enabled.
-            for camera_id in list(workers):
-                thread, stop_event = workers[camera_id]
-
-                if camera_id not in desired_ids:
-                    stop_event.set()
-                    thread.join(timeout=3)
-
-                    if not thread.is_alive():
-                        del workers[camera_id]
-                    else:
-                        print(
-                            f"Camera {camera_id}: "
-                            "waiting for worker to stop"
-                        )
-
-            # Start workers for newly enabled cameras.
-            for camera in cameras:
-                camera_id = camera["camera_id"]
-
-                if camera_id not in desired_ids:
-                    continue
-
-                if camera_id not in workers:
-                    stop_event = threading.Event()
-
-                    thread = threading.Thread(
-                        target=camera_worker,
-                        args=(camera, backend, stop_event),
-                        name=f"Camera-{camera_id}",
-                        daemon=True
-                    )
-
-                    workers[camera_id] = (thread, stop_event)
-                    thread.start()
-
-            time.sleep(3)
-
-    except KeyboardInterrupt:
-        print("Stopping all camera workers...")
-
+        manager.run(stop_event, CAMERA_POLL_INTERVAL_SECONDS)
     finally:
-        for thread, stop_event in workers.values():
-            stop_event.set()
-
-        for thread, stop_event in workers.values():
-            thread.join(timeout=3)
+        manager.stop_all()
+        logging.info("Camera workers stopped.")
 
 
 if __name__ == "__main__":
