@@ -112,4 +112,67 @@ describe('Occupancy Analytics frontend', () => {
     expect(wrapper.text()).toContain('error: service unavailable')
     wrapper.unmount()
   })
+
+  it('submits selected peak filters and displays the returned timestamp', async () => {
+    const recordedAt = '2026-10-29T11:15:30Z'
+    api.fetchRooms.mockResolvedValue([{ room_id: 4, room_name: 'Studio B' }])
+    api.fetchPeakOccupancyPeriods.mockResolvedValue([{
+      log_id: 42,
+      room_id: 4,
+      room_name: 'Studio B',
+      occupancy_count: 17,
+      occupancy_pct: 85,
+      recorded_at: recordedAt
+    }])
+    const wrapper = mount(Analytics)
+    await flushPromises()
+
+    await wrapper.findAll('button.chart-tab')
+      .find(button => button.text().includes('peak analysis'))
+      .trigger('click')
+    await flushPromises()
+    await wrapper.get('.tab-controls select').setValue('4')
+    await wrapper.get('.tab-controls input[type="date"]').setValue('2026-10-29')
+    const hourSelects = wrapper.findAll('.tab-controls select')
+    await hourSelects[1].setValue('9')
+    await hourSelects[2].setValue('12')
+    await wrapper.get('.tab-controls button.forecast-predict-btn').trigger('click')
+    await flushPromises()
+
+    const params = new URLSearchParams(
+      api.fetchPeakOccupancyPeriods.mock.calls.at(-1)[0]
+    )
+    expect(params.get('room_id')).toBe('4')
+    expect(params.get('date')).toBe('2026-10-29')
+    expect(params.get('hour_from')).toBe('9')
+    expect(params.get('hour_to')).toBe('12')
+    expect(wrapper.text()).toContain('Studio B')
+    expect(wrapper.text()).toContain('17 occupants')
+    expect(wrapper.text()).toContain(new Date(recordedAt).toLocaleString([], {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    }))
+    wrapper.unmount()
+  })
+
+  it('labels the displayed forecast bounds as a confidence band', async () => {
+    api.fetchForecast.mockResolvedValue([
+      { hour: 8, predicted_pct: 50, upper_pct: 65, lower_pct: 35 },
+      { hour: 9, predicted_pct: 60, upper_pct: 75, lower_pct: 45 }
+    ])
+    const wrapper = mount(Analytics)
+    await flushPromises()
+
+    await wrapper.findAll('button.chart-tab')
+      .find(button => button.text().includes('forecast'))
+      .trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('.chart-legend').text()).toContain('confidence band (±1 SD)')
+    expect(wrapper.get('svg path[fill="#bfdbfe"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
 })

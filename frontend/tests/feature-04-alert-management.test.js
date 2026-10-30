@@ -70,6 +70,40 @@ describe('Alert Management frontend', () => {
     expect(api.fetchAlerts).toHaveBeenCalledTimes(3)
   })
 
+  it('preserves the displayed alert status when an acknowledge request fails', async () => {
+    api.fetchAlerts.mockResolvedValue([
+      { alert_id: 21, message: 'Capacity warning', room_id: 3, alert_type: 'near_capacity', is_resolved: false }
+    ])
+    api.acknowledgeAlert.mockRejectedValue(new Error('request failed'))
+    const wrapper = mount(Alerts)
+    await flushPromises()
+    const fetchCallsBeforeAction = api.fetchAlerts.mock.calls.length
+
+    await wrapper.get('.alert-btn-ack').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('tbody').text()).toContain('active')
+    expect(wrapper.get('tbody').text()).not.toContain('acknowledged')
+    expect(api.acknowledgeAlert).toHaveBeenCalledWith(21)
+    expect(api.fetchAlerts).toHaveBeenCalledTimes(fetchCallsBeforeAction)
+  })
+
+  it('acknowledges all active alerts and refreshes without changing acknowledged alerts', async () => {
+    api.fetchAlerts.mockResolvedValue([
+      { alert_id: 31, message: 'Active one', room_id: 1, alert_type: 'overcrowding', is_resolved: false },
+      { alert_id: 32, message: 'Active two', room_id: 2, alert_type: 'near_capacity', is_resolved: 0 },
+      { alert_id: 33, message: 'Already acknowledged', room_id: 3, alert_type: 'system_malfunction', is_resolved: true }
+    ])
+    const wrapper = mount(Alerts)
+    await flushPromises()
+
+    await wrapper.get('.section-link').trigger('click')
+    await flushPromises()
+
+    expect(api.acknowledgeAlert.mock.calls.map(([id]) => id)).toEqual([31, 32])
+    expect(api.fetchAlerts).toHaveBeenCalledTimes(2)
+  })
+
   it('deletes only after confirmation and preserves the list when confirmation is cancelled', async () => {
     api.fetchAlerts.mockResolvedValue([
       { alert_id: 14, message: 'Historical alert', room_id: 2, alert_type: 'system_malfunction', is_resolved: true }

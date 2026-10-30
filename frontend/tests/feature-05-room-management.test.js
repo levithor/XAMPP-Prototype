@@ -97,4 +97,59 @@ describe('Room Management frontend', () => {
     expect(wrapper.text()).toContain('Studio')
     expect(wrapper.text()).toContain('24 people')
   })
+
+  it('prefills the edit form, updates a room, and refreshes the displayed values', async () => {
+    const originalRoom = {
+      room_id: 3,
+      room_name: 'Lab 3',
+      capacity_limit: 20,
+      occupancy_threshold: 16
+    }
+    const updatedRoom = {
+      ...originalRoom,
+      room_name: 'Studio',
+      capacity_limit: 24,
+      occupancy_threshold: 20
+    }
+    api.fetchRooms
+      .mockResolvedValueOnce([originalRoom])
+      .mockResolvedValueOnce([updatedRoom])
+    const wrapper = mount(Rooms)
+    await flushPromises()
+
+    await wrapper.get('i[title="edit room"]').trigger('click')
+    expect(wrapper.get('input[placeholder="e.g. Room 301"]').element.value).toBe('Lab 3')
+    expect(wrapper.get('input[placeholder="e.g. 40"]').element.value).toBe('20')
+    expect(wrapper.get('input[placeholder="e.g. 35"]').element.value).toBe('16')
+
+    await wrapper.get('input[placeholder="e.g. Room 301"]').setValue('Studio')
+    await wrapper.get('input[placeholder="e.g. 40"]').setValue('24')
+    await wrapper.get('input[placeholder="e.g. 35"]').setValue('20')
+    await wrapper.get('.modal-actions button.btn-primary').trigger('click')
+    await flushPromises()
+
+    expect(api.updateRoom).toHaveBeenCalledWith(3, {
+      room_name: 'Studio',
+      capacity_limit: 24,
+      occupancy_threshold: 20
+    })
+    expect(wrapper.text()).toContain('Studio')
+    expect(wrapper.text()).toContain('24 people')
+  })
+
+  it('deletes a room only after confirmation', async () => {
+    api.fetchRooms.mockResolvedValue([{ room_id: 8, room_name: 'Office' }])
+    const confirm = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true)
+    vi.stubGlobal('confirm', confirm)
+    const wrapper = mount(Rooms)
+    await flushPromises()
+
+    await wrapper.get('i[title="delete room"]').trigger('click')
+    expect(api.deleteRoom).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Office')
+
+    await wrapper.get('i[title="delete room"]').trigger('click')
+    await flushPromises()
+    expect(api.deleteRoom).toHaveBeenCalledWith(8)
+  })
 })

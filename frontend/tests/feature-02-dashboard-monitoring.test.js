@@ -9,10 +9,14 @@ const api = vi.hoisted(() => ({
   fetchCameras: vi.fn(),
   fetchRooms: vi.fn()
 }))
+const polling = vi.hoisted(() => ({ callback: null }))
 
 vi.mock('../src/api.js', () => api)
 vi.mock('../src/other/usePolling.js', () => ({
-  usePolling: callback => callback()
+  usePolling: callback => {
+    polling.callback = callback
+    callback()
+  }
 }))
 
 describe('Occupancy Monitoring frontend', () => {
@@ -24,6 +28,7 @@ describe('Occupancy Monitoring frontend', () => {
     api.fetchAlerts.mockResolvedValue([])
     api.fetchCameras.mockResolvedValue([])
     api.fetchRooms.mockResolvedValue([])
+    polling.callback = null
   })
 
   it('combines rooms, occupancy, online cameras, and active alerts into dashboard summaries', async () => {
@@ -83,5 +88,29 @@ describe('Occupancy Monitoring frontend', () => {
     expect(wrapper.text()).toContain('Available room')
     expect(wrapper.text()).toContain('system online')
     expect(wrapper.text()).toContain('0 / 10 max')
+  })
+
+  it('refreshes and displays occupancy when a later polling callback runs', async () => {
+    api.fetchRooms.mockResolvedValue([
+      { room_id: 9, room_name: 'Available room', capacity_limit: 10 }
+    ])
+    api.fetchLatestOccupancy
+      .mockResolvedValueOnce([
+        { room_id: 9, occupancy_count: 2, camera_id: 5, recorded_at: '2026-10-30T10:00:00Z' }
+      ])
+      .mockResolvedValueOnce([
+        { room_id: 9, occupancy_count: 5, camera_id: 5, recorded_at: '2026-10-30T10:05:00Z' }
+      ])
+    const wrapper = mount(Home, {
+      global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } }
+    })
+    await flushPromises()
+    expect(wrapper.get('.room-count').text()).toContain('2')
+
+    await polling.callback()
+    await flushPromises()
+
+    expect(api.fetchLatestOccupancy).toHaveBeenCalledTimes(2)
+    expect(wrapper.get('.room-count').text()).toContain('5')
   })
 })

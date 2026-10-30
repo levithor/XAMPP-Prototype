@@ -89,6 +89,34 @@ describe('User Authentication frontend', () => {
     expect(api.registerAdmin).not.toHaveBeenCalled()
   })
 
+  it('rejects invalid email, short password, and mismatched confirmation', async () => {
+    const wrapper = mount(Register, { global: { plugins: [createTestRouter()] } })
+    const username = wrapper.get('input[placeholder="e.g. manager_mario"]')
+    const email = wrapper.get('input[placeholder="admin@occuvision.com"]')
+    const password = wrapper.get('input[placeholder="min. 8 characters"]')
+    const confirmation = wrapper.get('input[placeholder="repeat your password"]')
+    const submit = wrapper.get('button.btn-signin')
+
+    await username.setValue('manager')
+    await email.setValue('invalid-email')
+    await password.setValue('password123')
+    await confirmation.setValue('password123')
+    await submit.trigger('click')
+    expect(wrapper.text()).toContain('please enter a valid email')
+
+    await email.setValue('manager@example.test')
+    await password.setValue('short')
+    await confirmation.setValue('short')
+    await submit.trigger('click')
+    expect(wrapper.text()).toContain('password must be at least 8 characters')
+
+    await password.setValue('password123')
+    await confirmation.setValue('different123')
+    await submit.trigger('click')
+    expect(wrapper.text()).toContain('passwords do not match')
+    expect(api.registerAdmin).not.toHaveBeenCalled()
+  })
+
   it('submits trimmed registration details and displays success feedback', async () => {
     vi.useFakeTimers()
     const testRouter = createTestRouter()
