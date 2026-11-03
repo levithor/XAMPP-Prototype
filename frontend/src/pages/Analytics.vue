@@ -287,7 +287,7 @@
               </div>
               <div class="legend-item">
                 <span style="display:inline-block;width:14px;height:3px;background:#bfdbfe;border-radius:2px;"></span>
-                confidence band (±1 SD)
+                expected range (±1 SD)
               </div>
               <div class="legend-item"><span class="legend-swatch dashed"></span> capacity limit (80%)</div>
             </div>
@@ -299,7 +299,7 @@
             <div v-else-if="forecastPoints.length === 0" class="chart-placeholder">
               <i class="ti ti-chart-dots" style="font-size:28px; margin-bottom:8px; display:block; color:var(--color-text-muted);" />
               <span>not enough historical data to forecast.</span><br>
-              <span style="font-size:11px; margin-top:4px; display:block;">at least a few days of occupancy logs are needed.</span>
+              <span style="font-size:11px; margin-top:4px; display:block;">no occupancy records exist in the 28 days before the selected date. try adjusting the room, date, or hour range.</span>
             </div>
             <svg v-else viewBox="0 0 700 280" style="width:100%; height:260px;">
               
@@ -349,6 +349,13 @@
               <div class="forecast-summary-item">
                 <span class="forecast-summary-value">avg: {{ forecastAvg }}%</span>
                 <span class="forecast-summary-label"> over selected window</span>
+              </div>
+              <div class="forecast-summary-item">
+                <template v-if="forecastAccuracy">
+                  <span class="forecast-summary-value">avg error: ±{{ forecastAccuracy.mae }} pts</span>
+                  <span class="forecast-summary-label"> · {{ forecastAccuracy.coverage_pct }}% of actual readings fell inside the range (backtest, last {{ forecastAccuracy.evaluated_days }} days)</span>
+                </template>
+                <span v-else class="forecast-summary-label">accuracy: not enough recent data to evaluate</span>
               </div>
               <div v-if="forecastOverCapacity.length > 0" class="forecast-summary-warning">
                 <i class="ti ti-alert-triangle" style="font-size:12px;" />
@@ -980,6 +987,7 @@ function formatTime(ts) {
 const chartTab        = ref('trend')
 const forecastLoading = ref(false)
 const forecastData    = ref([])
+const forecastAccuracy = ref(null)
 
 const tomorrowStr = computed(() => {
   const d = new Date(); d.setDate(d.getDate() + 1)
@@ -1005,10 +1013,15 @@ async function runForecast() {
       hour_to:   forecastHourTo.value,
     })
     if (forecastRoomId.value) p.set('room_id', forecastRoomId.value)
-    forecastData.value = await fetchForecast(p.toString())
+    const data = await fetchForecast(p.toString())
+    const preds = Array.isArray(data) ? data : (data?.predictions || [])
+    // drop hours with no history so they aren't drawn as 0%
+    forecastData.value     = preds.filter(d => d.predicted_pct !== null)
+    forecastAccuracy.value = Array.isArray(data) ? null : (data?.accuracy || null)
   } catch (err) {
     console.warn('Forecast failed:', err.message)
     forecastData.value = []
+    forecastAccuracy.value = null
   } finally {
     forecastLoading.value = false
   }
@@ -1070,7 +1083,7 @@ const forecastBandPath = computed(() => {
 const forecastPeak = computed(() => {
   if (!forecastData.value.length) return { hour: 0, pct: 0 }
   return forecastData.value.reduce((best, d) =>
-    d.predicted_pct > best.predicted_pct ? { hour: d.hour, pct: d.predicted_pct } : best,
+    d.predicted_pct > best.pct ? { hour: d.hour, pct: d.predicted_pct } : best,
     { hour: 0, pct: 0 }
   )
 })

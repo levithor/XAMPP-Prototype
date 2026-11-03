@@ -224,77 +224,160 @@ exports.getWeeklyHeatmap = async (req, res) => {
     }
 };
 
+// ─────────────────────────────────────────────────────────────
+// Forecast model
+//   • History is aggregated to one value per (day, hour), so every
+//     observation is a distinct day (no inflation from many logs/hour).
+//   • Recent days count more (exponential decay, 14-day half-life).
+//   • Same-weekday history is preferred; with fewer than 3 same-weekday
+//     days it is blended with the all-days average instead of switching
+//     abruptly.
+//   • Accuracy is measured by backtesting: the same model is re-run on
+//     recent past days using only data from before each day, then
+//     compared with what actually happened.
+// ─────────────────────────────────────────────────────────────
+const FC_WINDOW_DAYS   = 28;  // history used for one prediction
+const FC_HALF_LIFE     = 14;  // days until an observation's weight halves
+const FC_MIN_SAME_DOW  = 3;   // same-weekday days needed to rely on weekday pattern fully
+const FC_BACKTEST_DAYS = 7;   // most recent days with data used for accuracy
+const FC_BACKTEST_MIN  = 10;  // min hourly points to report accuracy
+const DAY_MS = 86400000;
+
+const toUtc      = s => { const [y, m, d] = s.split('-').map(Number); return Date.UTC(y, m - 1, d); };
+const dayDiff    = (a, b) => Math.round((toUtc(a) - toUtc(b)) / DAY_MS);
+const dowOf      = s => new Date(toUtc(s)).getUTCDay() + 1;            // 1 = Sunday (same as MySQL DAYOFWEEK)
+const shiftDay   = (s, n) => new Date(toUtc(s) + n * DAY_MS).toISOString().slice(0, 10);
+const localDate  = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const clampPct   = v => Math.max(0, Math.min(100, Math.round(v)));
+
+// recency-weighted mean and standard deviation of observations [{day, pct}]
+function weightedStats(obs, targetDay) {
+    let w1 = 0, w2 = 0, sum = 0;
+    const ws = obs.map(o => {
+        const w = Math.pow(0.5, dayDiff(targetDay, o.day) / FC_HALF_LIFE);
+        w1 += w; w2 += w * w; sum += w * o.pct;
+        return w;
+    });
+    const mean = sum / w1;
+    let sd = 0;
+    if (obs.length > 1) {
+        const ss    = obs.reduce((s, o, i) => s + ws[i] * (o.pct - mean) ** 2, 0);
+        const denom = w1 - w2 / w1;
+        sd = denom > 0 ? Math.sqrt(ss / denom) : 0;
+    }
+    return { mean, sd };
+}
+
+// hist: [{day, hour, dow, pct}] already limited to the window before targetDay
+function predictHour(hist, targetDay, hour) {
+    const all = hist.filter(o => o.hour === hour);
+    if (all.length === 0) return null;
+
+    const same  = all.filter(o => o.dow === dowOf(targetDay));
+    const allS  = weightedStats(all, targetDay);
+    const sameS = same.length ? weightedStats(same, targetDay) : null;
+
+    const alpha = Math.min(1, same.length / FC_MIN_SAME_DOW);   // trust in the weekday pattern
+    const mean  = sameS ? alpha * sameS.mean + (1 - alpha) * allS.mean : allS.mean;
+    const sd    = sameS && same.length >= 2 ? sameS.sd : allS.sd;
+
+    const basis = same.length >= FC_MIN_SAME_DOW ? 'same_weekday'
+                : same.length > 0               ? 'blended'
+                :                                 'all_days';
+    return { mean, sd, basis, n: same.length > 0 ? same.length : all.length };
+}
+
+function buildPredictions(history, targetDay, hourFrom, hourTo) {
+    const lo   = shiftDay(targetDay, -FC_WINDOW_DAYS);
+    const hist = history.filter(o => o.day >= lo && o.day < targetDay);
+    const out  = [];
+    for (let h = hourFrom; h <= hourTo; h++) {
+        const p = predictHour(hist, targetDay, h);
+        if (!p) {
+            out.push({ hour: h, predicted_pct: null, lower_pct: null, upper_pct: null, sample_size: 0, basis: null });
+            continue;
+        }
+        out.push({
+            hour:          h,
+            predicted_pct: clampPct(p.mean),
+            lower_pct:     clampPct(p.mean - p.sd),
+            upper_pct:     clampPct(p.mean + p.sd),
+            sample_size:   p.n,      // distinct days behind this prediction
+            basis:         p.basis,  // same_weekday | blended | all_days
+        });
+    }
+    return out;
+}
+
+// Re-forecast recent past days using only earlier data, compare with actuals.
+function backtest(history, targetDay, hourFrom, hourTo) {
+    const lo   = shiftDay(targetDay, -FC_WINDOW_DAYS);
+    const days = [...new Set(history.filter(o => o.day >= lo && o.day < targetDay).map(o => o.day))]
+        .sort().reverse().slice(0, FC_BACKTEST_DAYS);
+
+    let errSum = 0, inside = 0, n = 0, usedDays = 0;
+    for (const day of days) {
+        const preds   = buildPredictions(history, day, hourFrom, hourTo);
+        const actuals = history.filter(o => o.day === day && o.hour >= hourFrom && o.hour <= hourTo);
+        let counted = false;
+        for (const a of actuals) {
+            const p = preds.find(x => x.hour === a.hour);
+            if (!p || p.predicted_pct === null) continue;
+            errSum += Math.abs(p.predicted_pct - a.pct);
+            if (a.pct >= p.lower_pct && a.pct <= p.upper_pct) inside++;
+            n++; counted = true;
+        }
+        if (counted) usedDays++;
+    }
+    if (n < FC_BACKTEST_MIN) return null;
+    return {
+        mae:              Math.round((errSum / n) * 10) / 10,   // avg error in percentage points
+        coverage_pct:     Math.round((inside / n) * 100),       // % of actual values inside the range
+        evaluated_points: n,
+        evaluated_days:   usedDays,
+    };
+}
+
 exports.getForecast = async (req, res) => {
     try {
-        const today    = new Date();
-        const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
-        const date      = req.query.date      || tomorrow.toISOString().slice(0, 10);
+        const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+        const date      = req.query.date      || localDate(tomorrow);
         const hour_from = parseInt(req.query.hour_from ?? 0);
         const hour_to   = parseInt(req.query.hour_to   ?? 23);
         const room_id   = req.query.room_id   || null;
 
-        const forecastDow = new Date(date + 'T12:00:00').getDay() + 1;
-
         const roomClause = room_id ? 'AND ol.room_id = ?' : '';
-        const params = [];
+        // history = the 56 days before the forecast date
+        // (28 for the prediction + 28 more so recent days can be backtested)
+        const params = [date, date];
         if (room_id) params.push(room_id);
 
         const [rows] = await db.query(
             `SELECT
-                HOUR(ol.recorded_at)                              AS hour,
-                DAYOFWEEK(ol.recorded_at)                         AS dow,
-                ol.occupancy_count / r.capacity_limit * 100       AS pct
+                DATE_FORMAT(ol.recorded_at, '%Y-%m-%d')            AS day,
+                HOUR(ol.recorded_at)                               AS hour,
+                DAYOFWEEK(ol.recorded_at)                          AS dow,
+                AVG(ol.occupancy_count / r.capacity_limit * 100)   AS pct
              FROM occupancy_logs ol
              JOIN rooms r ON ol.room_id = r.room_id
-             WHERE ol.recorded_at >= NOW() - INTERVAL 28 DAY
+             WHERE ol.recorded_at >= DATE_SUB(?, INTERVAL ${FC_WINDOW_DAYS * 2} DAY)
+               AND ol.recorded_at <  ?
                AND r.capacity_limit > 0
                ${roomClause}
-             ORDER BY hour, dow`,
+             GROUP BY day, hour, dow`,
             params
         );
 
-        const sameDow = {};
-        const allDow  = {};
+        const history = rows.map(r => ({ day: r.day, hour: Number(r.hour), dow: Number(r.dow), pct: Number(r.pct) }));
 
-        rows.forEach(r => {
-            const h = r.hour;
-            if (!allDow[h])  allDow[h]  = [];
-            allDow[h].push(Number(r.pct));
-            if (r.dow === forecastDow) {
-                if (!sameDow[h]) sameDow[h] = [];
-                sameDow[h].push(Number(r.pct));
-            }
-        });
+        const predictions = buildPredictions(history, date, hour_from, hour_to);
 
-        function stats(arr) {
-            if (!arr || arr.length === 0) return null;
-            const n   = arr.length;
-            const avg = arr.reduce((a, b) => a + b, 0) / n;
-            const sd  = n > 1
-                ? Math.sqrt(arr.reduce((s, v) => s + (v - avg) ** 2, 0) / (n - 1))
-                : 0;
-            return { avg, sd, n };
+        // E1: no historical data for the chosen filters
+        if (predictions.every(p => p.predicted_pct === null)) {
+            return res.json({ predictions: [], accuracy: null });
         }
 
-        const result = [];
-        for (let h = hour_from; h <= hour_to; h++) {
-            const useSameDow = (sameDow[h]?.length ?? 0) >= 2;
-            const s = stats(useSameDow ? sameDow[h] : allDow[h]);
-            if (!s) {
-                result.push({ hour: h, predicted_pct: null, lower_pct: null, upper_pct: null, sample_size: 0 });
-                continue;
-            }
-            const predicted = Math.max(0, Math.min(100, Math.round(s.avg)));
-            result.push({
-                hour:          h,
-                predicted_pct: predicted,
-                lower_pct:     Math.max(0,   Math.round(s.avg - s.sd)),
-                upper_pct:     Math.min(100, Math.round(s.avg + s.sd)),
-                sample_size:   s.n,
-            });
-        }
-
-        res.json(result);
+        res.json({ predictions, accuracy: backtest(history, date, hour_from, hour_to) });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
