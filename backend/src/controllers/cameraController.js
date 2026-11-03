@@ -14,6 +14,17 @@ function validRtspUrl(value) {
   }
 }
 
+function validExternalIdentifier(value, maxBytes) {
+  return typeof value === 'string'
+    && value.length > 0
+    && value === value.trim()
+    && Buffer.byteLength(value, 'utf8') <= maxBytes;
+}
+
+function validSourceType(value) {
+  return value === 'rtsp_yolo' || value === 'dahua_external';
+}
+
 function containsRedactionMarker(value) {
   if (typeof value !== 'string') return false;
   try {
@@ -66,9 +77,9 @@ function logDatabaseError(operation, err) {
 
 const COMPUTED_STATUS = `
   CASE
-    WHEN last_communication IS NULL
+    WHEN c.last_communication IS NULL
       THEN 'offline'
-    WHEN last_communication < DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+    WHEN c.last_communication < DATE_SUB(NOW(), INTERVAL 5 MINUTE)
       THEN 'offline'
     ELSE 'online'
   END
@@ -78,23 +89,38 @@ const COMPUTED_STATUS = `
 // ── CAMERA SELECT FIELDS — add new columns HERE ──
 const CAMERA_SELECT = `
   SELECT
-    camera_id,
-    camera_name,
-    rtsp_url,
-    assigned_room_id,
-    last_communication,
-    desired_connection_state,
-    created_at,
-    (${COMPUTED_STATUS}) AS status
-  FROM cameras
+    c.camera_id,
+    c.camera_name,
+    c.rtsp_url,
+    c.source_type,
+    c.external_camera_id,
+    c.external_area_id,
+    c.assigned_room_id,
+    c.last_communication,
+    c.desired_connection_state,
+    c.created_at,
+    (${COMPUTED_STATUS}) AS status,
+    ces.occupancy_count AS external_occupancy_count,
+    ces.occupancy_status AS external_occupancy_status,
+    ces.observation_id AS external_observation_id,
+    DATE_FORMAT(ces.observed_at_utc, '%Y-%m-%dT%H:%i:%s.%fZ') AS external_observed_at_utc,
+    DATE_FORMAT(ces.received_at_utc, '%Y-%m-%dT%H:%i:%s.%fZ') AS external_received_at_utc,
+    DATE_FORMAT(ces.status_evaluated_at_utc, '%Y-%m-%dT%H:%i:%s.%fZ') AS external_status_evaluated_at_utc,
+    ces.reporting_status AS external_reporting_status,
+    ces.sync_health AS synchronization_health,
+    DATE_FORMAT(ces.last_successful_sync_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS last_successful_sync_at,
+    ces.last_error_code AS synchronization_error_code
+  FROM cameras c
+  LEFT JOIN camera_external_state ces ON ces.camera_id = c.camera_id
 `;
 
 // GET /api/cameras
 exports.getCameras = async (req, res) => {
   try {
-    const [cameras] = await db.query(`${CAMERA_SELECT} ORDER BY created_at DESC`);
+    const [cameras] = await db.query(`${CAMERA_SELECT} ORDER BY c.created_at DESC`);
 
     for (const cam of cameras) {
+      if (cam.source_type === 'dahua_external') continue;
       if (cam.status === 'offline') {
         await createCameraOfflineAlert(cam.camera_id, cam.camera_name, cam.assigned_room_id);
       } else {
@@ -113,7 +139,7 @@ exports.getCameras = async (req, res) => {
 exports.getCameraById = async (req, res) => {
   try {
     const [rows] = await db.query(
-      `${CAMERA_SELECT} WHERE camera_id = ?`,
+      `${CAMERA_SELECT} WHERE c.camera_id = ?`,
       [req.params.id]
     );
     if (rows.length === 0) return res.status(404).json({ message: 'Camera not found' });
@@ -127,24 +153,70 @@ exports.getCameraById = async (req, res) => {
 
 exports.createCamera = async (req, res) => {
   try {
-    const { camera_name, rtsp_url, assigned_room_id } = req.body;
+    const {
+      camera_name,
+      rtsp_url,
+      assigned_room_id,
+      external_camera_id,
+      external_area_id,
+    } = req.body;
+    const sourceType = req.body.source_type ?? 'rtsp_yolo';
     if (typeof camera_name !== 'string' || !camera_name.trim()) {
       return res.status(400).json({ message: 'Camera name is required.' });
     }
-    if (containsRedactionMarker(rtsp_url)) {
-      return res.status(400).json({ message: 'Enter the complete RTSP URL; redacted values cannot be saved.' });
+    if (!validSourceType(sourceType)) {
+      return res.status(400).json({ message: 'Camera source_type must be rtsp_yolo or dahua_external.' });
     }
-    if (rtsp_url && !validRtspUrl(rtsp_url)) {
-      return res.status(400).json({ message: 'Camera RTSP URL must be a valid rtsp:// URL.' });
+
+    let storedRtspUrl = rtsp_url || null;
+    let storedExternalCameraId = null;
+    let storedExternalAreaId = null;
+    if (sourceType === 'dahua_external') {
+      if (assigned_room_id == null || assigned_room_id === '') {
+        return res.status(400).json({ message: 'Assign this camera to a room before enabling occupancy synchronization.' });
+      }
+      if (!validExternalIdentifier(external_camera_id, 64)) {
+        return res.status(400).json({ message: 'Dahua external_camera_id must be a non-empty ID of at most 64 bytes.' });
+      }
+      if (!validExternalIdentifier(external_area_id, 128)) {
+        return res.status(400).json({ message: 'Dahua external_area_id must be a non-empty ID of at most 128 bytes.' });
+      }
+      if (rtsp_url) {
+        return res.status(400).json({ message: 'Dahua External cameras do not use an RTSP URL.' });
+      }
+      storedRtspUrl = null;
+      storedExternalCameraId = external_camera_id;
+      storedExternalAreaId = external_area_id;
+    } else {
+      if (containsRedactionMarker(rtsp_url)) {
+        return res.status(400).json({ message: 'Enter the complete RTSP URL; redacted values cannot be saved.' });
+      }
+      if (rtsp_url && !validRtspUrl(rtsp_url)) {
+        return res.status(400).json({ message: 'Camera RTSP URL must be a valid rtsp:// URL.' });
+      }
     }
 
     const [result] = await db.query(
-      `INSERT INTO cameras (camera_name, rtsp_url, assigned_room_id)
-       VALUES (?, ?, ?)`,
-      [camera_name.trim(), rtsp_url || null, assigned_room_id || null]
+      `INSERT INTO cameras
+         (camera_name, rtsp_url, source_type, external_camera_id, external_area_id,
+          dahua_mapping_revision, dahua_mapping_updated_at, assigned_room_id)
+       VALUES (?, ?, ?, ?, ?, ?, CASE WHEN ? = 'dahua_external' THEN UTC_TIMESTAMP(6) ELSE NULL END, ?)`,
+      [
+        camera_name.trim(),
+        storedRtspUrl,
+        sourceType,
+        storedExternalCameraId,
+        storedExternalAreaId,
+        sourceType === 'dahua_external' ? 1 : 0,
+        sourceType,
+        assigned_room_id || null,
+      ]
     );
     res.status(201).json({ camera_id: result.insertId });
   } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'This Dahua camera and area are already assigned to another OccuVision camera.' });
+    }
     logDatabaseError('camera creation', err);
     res.status(500).json({ error: 'Could not create camera.' });
   }
@@ -153,37 +225,105 @@ exports.createCamera = async (req, res) => {
 
 exports.updateCamera = async (req, res) => {
   try {
-    const { camera_name, rtsp_url, assigned_room_id } = req.body;
+    const { camera_name } = req.body;
     if (typeof camera_name !== 'string' || !camera_name.trim()) {
       return res.status(400).json({ message: 'Camera name is required.' });
     }
+
+    const [existingRows] = await db.query(
+      `SELECT source_type, rtsp_url, external_camera_id, external_area_id,
+              assigned_room_id, dahua_mapping_revision
+       FROM cameras
+       WHERE camera_id = ?`,
+      [req.params.id]
+    );
+    if (existingRows.length === 0) return res.status(404).json({ message: 'Camera not found' });
+    const existing = existingRows[0];
+    const sourceType = req.body.source_type ?? existing.source_type ?? 'rtsp_yolo';
+    if (!validSourceType(sourceType)) {
+      return res.status(400).json({ message: 'Camera source_type must be rtsp_yolo or dahua_external.' });
+    }
+
     const hasRtspUrl = Object.prototype.hasOwnProperty.call(req.body, 'rtsp_url');
-    if (hasRtspUrl && containsRedactionMarker(rtsp_url)) {
+    const rtspUrl = req.body.rtsp_url;
+    if (sourceType === 'rtsp_yolo' && hasRtspUrl && containsRedactionMarker(rtspUrl)) {
       return res.status(400).json({ message: 'Enter the complete RTSP URL; redacted values cannot be saved.' });
     }
-    if (hasRtspUrl && rtsp_url != null && rtsp_url !== '' && !validRtspUrl(rtsp_url)) {
+    if (sourceType === 'rtsp_yolo' && hasRtspUrl && rtspUrl != null && rtspUrl !== '' && !validRtspUrl(rtspUrl)) {
       return res.status(400).json({ message: 'Camera RTSP URL must be a valid rtsp:// URL.' });
     }
-    const normalizedRtspUrl = !hasRtspUrl || rtsp_url === '' ? null : rtsp_url;
+    if (sourceType === 'dahua_external' && hasRtspUrl && rtspUrl) {
+      return res.status(400).json({ message: 'Dahua External cameras do not use an RTSP URL.' });
+    }
+
+    const assignedRoomId = Object.prototype.hasOwnProperty.call(req.body, 'assigned_room_id')
+      ? (req.body.assigned_room_id || null)
+      : existing.assigned_room_id;
+    const externalCameraId = req.body.external_camera_id ?? existing.external_camera_id;
+    const externalAreaId = req.body.external_area_id ?? existing.external_area_id;
+    if (sourceType === 'dahua_external') {
+      if (!assignedRoomId) {
+        return res.status(400).json({ message: 'Assign this camera to a room before enabling occupancy synchronization.' });
+      }
+      if (!validExternalIdentifier(externalCameraId, 64)) {
+        return res.status(400).json({ message: 'Dahua external_camera_id must be a non-empty ID of at most 64 bytes.' });
+      }
+      if (!validExternalIdentifier(externalAreaId, 128)) {
+        return res.status(400).json({ message: 'Dahua external_area_id must be a non-empty ID of at most 128 bytes.' });
+      }
+    }
+
+    const sourceChanged = sourceType !== existing.source_type;
+    const roomChanged = sourceType === 'dahua_external'
+      && Number(assignedRoomId) !== Number(existing.assigned_room_id);
+    const mappingChanged = sourceChanged
+      || roomChanged
+      || (sourceType === 'dahua_external'
+        && (externalCameraId !== existing.external_camera_id || externalAreaId !== existing.external_area_id));
+    const normalizedRtspUrl = sourceType === 'dahua_external'
+      ? null
+      : sourceChanged
+        ? (hasRtspUrl && rtspUrl ? rtspUrl : null)
+        : hasRtspUrl
+          ? (rtspUrl || null)
+          : existing.rtsp_url;
+    const normalizedExternalCameraId = sourceType === 'dahua_external' ? externalCameraId : null;
+    const normalizedExternalAreaId = sourceType === 'dahua_external' ? externalAreaId : null;
 
     const [result] = await db.query(
       `UPDATE cameras
        SET camera_name = ?,
-           rtsp_url = CASE WHEN ? THEN ? ELSE rtsp_url END,
+           rtsp_url = ?,
+           source_type = ?,
+           external_camera_id = ?,
+           external_area_id = ?,
+           dahua_mapping_revision = CASE WHEN ? THEN
+             CASE WHEN ? = 'dahua_external'
+               THEN CASE WHEN ? = 'dahua_external' THEN dahua_mapping_revision + 1 ELSE 1 END
+               ELSE 0
+             END
+             ELSE dahua_mapping_revision
+           END,
+           dahua_mapping_updated_at = CASE WHEN ? THEN UTC_TIMESTAMP(6) ELSE dahua_mapping_updated_at END,
            last_communication = CASE WHEN ? THEN NULL ELSE last_communication END,
            assigned_room_id = ?,
-           desired_connection_state = CASE
-             WHEN ? IS NULL THEN 'disconnected'
-             ELSE desired_connection_state
-           END
+           desired_connection_state = CASE WHEN ? OR ? IS NULL
+             THEN 'disconnected' ELSE desired_connection_state END
        WHERE camera_id = ?`,
       [
         camera_name.trim(),
-        hasRtspUrl,
         normalizedRtspUrl,
-        hasRtspUrl,
-        assigned_room_id || null,
-        assigned_room_id || null,
+        sourceType,
+        normalizedExternalCameraId,
+        normalizedExternalAreaId,
+        mappingChanged,
+        sourceType,
+        existing.source_type,
+        mappingChanged,
+        hasRtspUrl || mappingChanged,
+        assignedRoomId,
+        mappingChanged,
+        assignedRoomId,
         req.params.id,
       ]
     );
@@ -194,8 +334,14 @@ exports.updateCamera = async (req, res) => {
       );
       if (cameras.length === 0) return res.status(404).json({ message: 'Camera not found' });
     }
+    if (mappingChanged) {
+      await db.query('DELETE FROM camera_external_state WHERE camera_id = ?', [req.params.id]);
+    }
     res.json({ message: 'updated' });
   } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'This Dahua camera and area are already assigned to another OccuVision camera.' });
+    }
     logDatabaseError('camera update', err);
     res.status(500).json({ error: 'Could not update camera.' });
   }
@@ -214,18 +360,25 @@ exports.setConnectionState = async (req, res) => {
   try {
     if (desiredState === 'connected') {
       const [cameras] = await db.query(
-        'SELECT rtsp_url, assigned_room_id FROM cameras WHERE camera_id = ?',
-        [cameraId]
-      );
-      if (cameras.length === 0) {
-        return res.status(404).json({ error: 'Camera not found.' });
-      }
+      `SELECT rtsp_url, source_type, external_camera_id, external_area_id, assigned_room_id
+       FROM cameras
+       WHERE camera_id = ?`,
+      [cameraId]
+    );
+    if (cameras.length === 0) {
+      return res.status(404).json({ error: 'Camera not found.' });
+    }
       if (!cameras[0].assigned_room_id) {
         return res.status(400).json({
           error: 'Assign this camera to a room before connecting; cameras without a room cannot submit occupancy.',
         });
       }
-      if (!validRtspUrl(cameras[0].rtsp_url)) {
+      if (cameras[0].source_type === 'dahua_external') {
+        if (!validExternalIdentifier(cameras[0].external_camera_id, 64)
+            || !validExternalIdentifier(cameras[0].external_area_id, 128)) {
+          return res.status(400).json({ error: 'Configure valid Dahua camera and area IDs before connecting.' });
+        }
+      } else if (!validRtspUrl(cameras[0].rtsp_url)) {
         return res.status(400).json({ error: 'Configure a valid rtsp:// URL before connecting.' });
       }
     }
@@ -243,6 +396,12 @@ exports.setConnectionState = async (req, res) => {
         return res.status(404).json({ error: 'Camera not found.' });
       }
     }
+    await db.query(
+      `UPDATE camera_external_state
+       SET sync_health = ?, last_error_code = NULL
+       WHERE camera_id = ?`,
+      [desiredState === 'connected' ? 'pending' : 'disabled', cameraId]
+    );
     res.json({ camera_id: cameraId, desired_connection_state: desiredState });
   } catch (err) {
     logDatabaseError('camera connection update', err);

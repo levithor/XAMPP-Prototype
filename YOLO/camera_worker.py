@@ -23,6 +23,7 @@ def run_camera_worker(
     source_factory,
     detector_factory,
     frame_interval_seconds=10,
+    evaluation_recorder=None,
 ):
     camera_id = config["camera_id"]
     rtsp_url = config["rtsp_url"]
@@ -53,12 +54,36 @@ def run_camera_worker(
 
                 if stop_event.is_set():
                     break
+                should_evaluate = (
+                    evaluation_recorder is not None
+                    and not evaluation_recorder.is_full()
+                )
+                evaluation_frame = frame.copy() if should_evaluate else None
+                inference_started = time.perf_counter() if should_evaluate else None
                 try:
-                    people, _ = detector.detect_people(frame)
+                    people, results = detector.detect_people(frame)
                 except Exception as exc:
                     logger.error("Camera %s inference failed (%s).", camera_id, type(exc).__name__)
                     last_detection = time.monotonic()
                     continue
+
+                if should_evaluate:
+                    inference_time_ms = (time.perf_counter() - inference_started) * 1000
+                    try:
+                        annotated_frame = detector.annotate_detections(results)
+                        evaluation_recorder.record(
+                            camera_id,
+                            evaluation_frame,
+                            annotated_frame,
+                            people,
+                            inference_time_ms,
+                        )
+                    except Exception as exc:
+                        logger.error(
+                            "Camera %s evaluation sample could not be saved (%s).",
+                            camera_id,
+                            type(exc).__name__,
+                        )
 
                 if stop_event.is_set():
                     break

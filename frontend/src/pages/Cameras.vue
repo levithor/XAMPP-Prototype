@@ -22,15 +22,15 @@
         </div>
         <div class="stat-card">
           <div class="stat-icon green"><i class="ti ti-wifi" /></div>
-          <div class="stat-label">online</div>
+          <div class="stat-label">RTSP online</div>
           <div class="stat-value">{{ onlineCount }}</div>
-          <div class="stat-sub">active in last 5 min</div>
+          <div class="stat-sub">RTSP / YOLO data in last 5 min</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon red"><i class="ti ti-wifi-off" /></div>
-          <div class="stat-label">offline</div>
+          <div class="stat-label">RTSP offline</div>
           <div class="stat-value">{{ offlineCount }}</div>
-          <div class="stat-sub">no data in 5+ min</div>
+          <div class="stat-sub">no RTSP data in 5+ min</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon amber"><i class="ti ti-door" /></div>
@@ -55,20 +55,29 @@
           class="room-card" :class="accentFor(cam)">
           <div class="room-card-header">
             <div class="room-name">{{ cam.camera_name }}</div>
-            <span class="room-badge" :class="statusBadge(cam)">data {{ cam.status }}</span>
+            <span class="room-badge" :class="sourceBadge(cam)">{{ sourceLabel(cam) }}</span>
           </div>
           <div class="camera-connection-state">
             requested: <strong>{{ desiredStateLabel(cam) }}</strong>
+            <span v-if="isDahua(cam)"> · sync: {{ synchronizationLabel(cam) }}</span>
+            <span v-else> · data: {{ cam.status }}</span>
           </div>
           <div class="room-loc">
             {{ roomName(cam.assigned_room_id) || 'unassigned' }}
           </div>
           <div class="cam-ip-row">
             <i class="ti ti-cast" style="font-size:13px; color:var(--color-text-muted);" />
-            <span class="cam-ip">{{ cam.rtsp_url || 'no rtsp url' }}</span>
+            <span class="cam-ip">{{ cameraMappingLabel(cam) }}</span>
+          </div>
+          <div v-if="isDahua(cam)" class="camera-external-state">
+            <strong>{{ externalOccupancyLabel(cam) }}</strong>
+            <span v-if="cam.synchronization_error_code" class="camera-connection-error">
+              sync error: {{ cam.synchronization_error_code }}
+            </span>
           </div>
           <div class="room-card-footer">
-            <span>last seen: {{ lastSeen(cam.last_communication) }}</span>
+            <span v-if="isDahua(cam)">last sync: {{ lastSeen(cam.last_successful_sync_at) }}</span>
+            <span v-else>last data: {{ lastSeen(cam.last_communication) }}</span>
             <div class="room-card-actions">
               <i class="ti ti-edit" title="edit camera" @click="openEditModal(cam)" />
               <i class="ti ti-trash" title="delete camera" @click="confirmDelete(cam)" />
@@ -104,11 +113,11 @@
           <thead>
             <tr>
               <th>camera name</th>
-              <th>rtsp url</th>
+              <th>source / mapping</th>
               <th>assigned room</th>
-              <th>data status</th>
+              <th>occupancy / sync</th>
               <th>requested</th>
-              <th>last communication</th>
+              <th>last data / sync</th>
               <th>connection</th>
               <th></th>
             </tr>
@@ -121,13 +130,22 @@
             </tr>
             <tr v-for="cam in cameras" :key="'tr-' + cam.camera_id">
               <td>{{ cam.camera_name }}</td>
-              <td class="muted">{{ cam.rtsp_url || '--' }}</td>
+              <td class="muted">{{ cameraMappingLabel(cam) }}</td>
               <td class="muted">{{ roomName(cam.assigned_room_id) || 'unassigned' }}</td>
               <td>
-                <span class="room-badge" :class="statusBadge(cam)">{{ cam.status }}</span>
+                <template v-if="isDahua(cam)">
+                  {{ externalOccupancyLabel(cam) }}<br />
+                  <span class="muted">sync {{ synchronizationLabel(cam) }}</span>
+                  <span v-if="cam.synchronization_error_code" class="camera-connection-error">
+                    {{ cam.synchronization_error_code }}
+                  </span>
+                </template>
+                <span v-else class="room-badge" :class="statusBadge(cam)">RTSP {{ cam.status }}</span>
               </td>
               <td>{{ desiredStateLabel(cam) }}</td>
-              <td class="muted">{{ lastSeen(cam.last_communication) }}</td>
+              <td class="muted">
+                {{ lastSeen(isDahua(cam) ? cam.last_successful_sync_at : cam.last_communication) }}
+              </td>
               <td>
                 <button
                   class="camera-connection-button"
@@ -170,7 +188,7 @@
           </div>
           <div class="modal-field">
             <label>assign to room</label>
-            <select v-model="form.assigned_room_id" class="modal-select">
+            <select v-model.number="form.assigned_room_id" class="modal-select">
               <option :value="null">— unassigned —</option>
 
               <option
@@ -190,8 +208,8 @@
               <button
                 type="button"
                 class="connection-option"
-                :class="{ active: form.connection_type === 'RTSP' }"
-                @click="form.connection_type = 'RTSP'"
+                :class="{ active: form.source_type === 'rtsp_yolo' }"
+                @click="form.source_type = 'rtsp_yolo'"
               >
                 RTSP
               </button>
@@ -199,15 +217,15 @@
               <button
                 type="button"
                 class="connection-option"
-                :class="{ active: form.connection_type === 'DAHUA' }"
-                @click="form.connection_type = 'DAHUA'"
+                :class="{ active: form.source_type === 'dahua_external' }"
+                @click="form.source_type = 'dahua_external'"
               >
                 Dahua
               </button>
 
             </div>
           </div>
-          <template v-if="form.connection_type === 'RTSP'">
+          <template v-if="form.source_type === 'rtsp_yolo'">
 
             <div class="modal-field">
               <label>rtsp url</label>
@@ -227,53 +245,28 @@
           <template v-else>
 
             <div class="modal-field">
-              <label>ip / domain name</label>
-
+              <label>XAMPP camera ID</label>
               <input
-                v-model="form.dahua_host"
-                placeholder="e.g. 192.168.1.108"
+                v-model="form.external_camera_id"
+                maxlength="64"
+                placeholder="exact camera_id from the XAMPP API"
               />
             </div>
 
             <div class="modal-field">
-              <label>port</label>
-
+              <label>XAMPP area ID</label>
               <input
-                v-model="form.dahua_port"
-                type="number"
-                placeholder="e.g. 80"
+                v-model="form.external_area_id"
+                maxlength="128"
+                placeholder="exact area_id from the XAMPP API"
               />
             </div>
-
-            <div class="modal-field">
-              <label>use https</label>
-
-              <label class="switch">
-                <input
-                  type="checkbox"
-                  v-model="form.dahua_https"
-                />
-                <span class="slider"></span>
-              </label>
-            </div>
-
-            <div class="modal-field">
-              <label>path</label>
-
-              <input
-                v-model="form.dahua_path"
-                placeholder="e.g. /getImages.php"
-              />
-            </div>
-
-            <div class="modal-field">
-              <label>event type</label>
-
-              <input
-                v-model="form.dahua_event_type"
-                placeholder="e.g. snapshot"
-              />
-            </div>
+            <small class="rtsp-edit-hint">
+              Assign a room above. These IDs must match the registration returned by the XAMPP API. The XAMPP server URL and API key are configured in the backend, not here.
+            </small>
+            <small v-if="editingCamera && isDahua(editingCamera)" class="rtsp-edit-hint">
+              Saving a changed mapping or room disconnects synchronization; reconnect the camera after saving.
+            </small>
 
           </template>
         </div>
@@ -311,43 +304,79 @@ const { toast }     = useToast()
 const form = ref({
   camera_name: '',
   assigned_room_id: null,
-
-  connection_type: 'RTSP',
-
-  // this one is for the old way
+  source_type: 'rtsp_yolo',
   rtsp_url: '',
-
-  // this ones for the external method
-  dahua_host: '',
-  dahua_port: '',
-  dahua_https: false,
-  dahua_path: '',
-  dahua_event_type: '',
+  external_camera_id: '',
+  external_area_id: '',
 })
 
 const filters = [
   { key: 'all',        label: 'all cameras' },
-  { key: 'online',     label: 'online' },
-  { key: 'offline',    label: 'offline' },
+  { key: 'online',     label: 'RTSP online' },
+  { key: 'offline',    label: 'RTSP offline' },
+  { key: 'dahua',      label: 'Dahua' },
+  { key: 'sync-error', label: 'sync errors' },
   { key: 'unassigned', label: 'unassigned' },
 ]
 
-const onlineCount     = computed(() => cameras.value.filter(c => c.status === 'online').length)
-const offlineCount    = computed(() => cameras.value.filter(c => c.status === 'offline').length)
+const onlineCount     = computed(() => cameras.value.filter(c => !isDahua(c) && c.status === 'online').length)
+const offlineCount    = computed(() => cameras.value.filter(c => !isDahua(c) && c.status === 'offline').length)
 const unassignedCount = computed(() => cameras.value.filter(c => !c.assigned_room_id).length)
+const healthyDahuaCount = computed(() => cameras.value.filter(c =>
+  isDahua(c) && c.synchronization_health === 'healthy'
+).length)
 
 const subtitle = computed(() =>
-  `${cameras.value.length} camera${cameras.value.length !== 1 ? 's' : ''} configured · ${onlineCount.value} online`
+  `${cameras.value.length} camera${cameras.value.length !== 1 ? 's' : ''} configured · ${onlineCount.value} RTSP online · ${healthyDahuaCount.value} Dahua sync healthy`
 )
 
 const filteredCameras = computed(() => {
   if (activeFilter.value === 'all')        return cameras.value
   if (activeFilter.value === 'unassigned') return cameras.value.filter(c => !c.assigned_room_id)
-  return cameras.value.filter(c => c.status === activeFilter.value)
+  if (activeFilter.value === 'dahua') return cameras.value.filter(isDahua)
+  if (activeFilter.value === 'sync-error') {
+    return cameras.value.filter(c => isDahua(c) && c.synchronization_health === 'error')
+  }
+  return cameras.value.filter(c => !isDahua(c) && c.status === activeFilter.value)
 })
 
 function statusBadge(cam) {
   return cam.status === 'online' ? 'badge-success' : 'badge-danger'
+}
+
+function isDahua(cam) {
+  return cam.source_type === 'dahua_external'
+}
+
+function sourceLabel(cam) {
+  return isDahua(cam) ? 'Dahua External' : 'RTSP / YOLO'
+}
+
+function sourceBadge(cam) {
+  if (!isDahua(cam)) return statusBadge(cam)
+  if (cam.synchronization_health === 'healthy') return 'badge-success'
+  return cam.synchronization_health === 'error' ? 'badge-danger' : 'badge-warning'
+}
+
+function cameraMappingLabel(cam) {
+  if (isDahua(cam)) {
+    return `camera ${cam.external_camera_id || '—'} · area ${cam.external_area_id || '—'}`
+  }
+  return cam.rtsp_url || 'no RTSP URL'
+}
+
+function synchronizationLabel(cam) {
+  return cam.synchronization_health || (isDesiredConnected(cam) ? 'pending' : 'disabled')
+}
+
+function externalOccupancyLabel(cam) {
+  const status = cam.external_occupancy_status
+  const count = cam.external_occupancy_count
+  if (status === 'measured') return `measured: ${count} people`
+  if (status === 'inferred_zero') return 'inferred zero (not a measurement)'
+  if (status === 'stale') return `stale; last measured: ${count ?? '—'} people`
+  if (status === 'unknown') return 'awaiting first measurement'
+  return 'no current occupancy state'
 }
 
 function isDesiredConnected(cam) {
@@ -359,6 +388,11 @@ function desiredStateLabel(cam) {
 }
 
 function accentFor(cam) {
+  if (isDahua(cam)) {
+    if (cam.synchronization_health === 'healthy') return 'accent-success'
+    if (cam.synchronization_health === 'error') return 'accent-danger'
+    return 'accent-warning'
+  }
   return cam.status === 'online' ? 'accent-success' : 'accent-danger'
 }
 
@@ -395,7 +429,14 @@ usePolling(refresh, 10000)
 
 function openAddModal() {
   editingCamera.value = null
-  form.value = { camera_name: '', rtsp_url: '', assigned_room_id: null, connection_type: 'RTSP' }
+  form.value = {
+    camera_name: '',
+    rtsp_url: '',
+    assigned_room_id: null,
+    source_type: 'rtsp_yolo',
+    external_camera_id: '',
+    external_area_id: '',
+  }
   modalError.value = ''
   showModal.value = true
 }
@@ -406,7 +447,9 @@ function openEditModal(cam) {
     camera_name:      cam.camera_name      || '',
     rtsp_url:         '',
     assigned_room_id: cam.assigned_room_id ?? null,
-    connection_type:  'RTSP',
+    source_type:      cam.source_type || 'rtsp_yolo',
+    external_camera_id: cam.external_camera_id || '',
+    external_area_id: cam.external_area_id || '',
   }
   modalError.value = ''
   showModal.value = true
@@ -423,14 +466,31 @@ async function submitModal() {
     modalError.value = 'camera name is required'
     return
   }
+  if (form.value.source_type === 'dahua_external') {
+    if (!form.value.assigned_room_id) {
+      modalError.value = 'assign this Dahua camera to a room before saving'
+      return
+    }
+    if (!form.value.external_camera_id.trim() || !form.value.external_area_id.trim()) {
+      modalError.value = 'XAMPP camera ID and area ID are required'
+      return
+    }
+  }
   try {
     const payload = {
       camera_name:      form.value.camera_name,
       assigned_room_id: form.value.assigned_room_id,
+      source_type:      form.value.source_type,
     }
-    const newRtspUrl = form.value.rtsp_url.trim()
-    if (newRtspUrl || !editingCamera.value) {
-      payload.rtsp_url = newRtspUrl || null
+    if (form.value.source_type === 'dahua_external') {
+      payload.external_camera_id = form.value.external_camera_id.trim()
+      payload.external_area_id = form.value.external_area_id.trim()
+    } else {
+      const newRtspUrl = form.value.rtsp_url.trim()
+      const changingToRtsp = editingCamera.value?.source_type !== 'rtsp_yolo'
+      if (newRtspUrl || !editingCamera.value || changingToRtsp) {
+        payload.rtsp_url = newRtspUrl || null
+      }
     }
     if (editingCamera.value) {
       await updateCamera(editingCamera.value.camera_id, payload)
@@ -471,16 +531,6 @@ async function confirmDelete(cam) {
   catch (err) { alert(`could not delete camera: ${err.message}`) }
 }
 
-async function toggleCameraConnection(camera) {
-  const enabled = !Boolean(camera.connection_enabled)
-
-  try {
-    await setCameraConnection(camera.camera_id, enabled)
-    await loadCameras()
-  } catch (error) {
-    console.error('Failed to change camera connection:', error)
-  }
-}
 </script>
 
 <style>

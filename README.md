@@ -79,7 +79,7 @@ Setup:
 3. Open phpMyAdmin
 4. Import sql/schema.sql
 5. Visit http://0.0.0.0/prototype (replace 0.0.0.0 with your server's IP address)
-
+f
 ## RTSP camera management
 
 ### Database migration
@@ -150,3 +150,22 @@ In the Vue app, open **Cameras**, add a camera name, assign a room, and enter it
 The Python process reconciles the persisted desired state when it starts and polls for changes every 2 seconds. Cameras without a room or valid RTSP URL cannot be connected. Occupancy counts are sent to `POST /api/occupancy`; frame images are not saved.
 
 OpenCV's RTSP open/read timeout parameters are used when supported by the installed OpenCV backend. If the build rejects those parameters, the service falls back to OpenCV defaults; shutdown may then wait for a blocked capture read to return. Shutdown also waits for an in-flight inference to finish. Test against the actual camera/OpenCV build before relying on bounded shutdown time.
+
+## Dahua External occupancy integration
+
+For an existing database, apply `backend/database/migrations/20261101_add_dahua_external_integration.sql` once with the `occuvision` database selected. It adds camera source/mapping fields, a unique external observation key, current external status, and a durable history checkpoint. Do not run `backend/database/schema.sql` or `npm run db:init` against an existing database; the base schema drops and recreates the database.
+
+Configure these values in `backend/.env`:
+
+```env
+DAHUA_API_BASE_URL=http://<xampp-server-lan-ip>/dahua-server/api
+DAHUA_API_KEY=<the-key-configured-on-the-Dahua-server>
+```
+
+The Node backend sends the key in the documented `X-API-Key` header. Keep both values server-side; never put the key in Vue or a camera record. Dahua **Connect/Disconnect** changes whether OccuVision polls/synchronizes that registration; it does not operate the physical camera or XAMPP. RTSP cameras continue to use their Python workers. Dahua history imports only measured events; inferred-zero, stale, and unknown states are stored as current status, not as measured occupancy logs.
+
+The backend begins synchronization when it starts and polls at approximately five-second intervals. It uses `/latest.php` for current status and `/history.php` for measured observations. History checkpoints are persisted per camera mapping, and interrupted pages are retried without duplicate log rows. The PHP contract has a 500-record page maximum and no forward cursor; the synchronizer follows `before_observation_id` pages to recover and complete the initial history scan.
+
+In **Cameras**, choose **Dahua** and enter the exact `camera_id` and `area_id` from the XAMPP API, then assign an OccuVision room. The XAMPP base URL and API key are configured only in the backend environment. The camera list keeps requested connection state, synchronization health, and reported occupancy state distinct; an inferred zero is labeled as inferred and is not treated as a measured event. Room monitoring and historical analytics use imported measured events in `occupancy_logs`.
+
+The contract's example base URL uses plain HTTP, which does not encrypt the API key. Use a trusted private network/VPN or configure HTTPS before sending the key over an untrusted network. The XAMPP health endpoint checks the service/database, not physical camera connectivity.

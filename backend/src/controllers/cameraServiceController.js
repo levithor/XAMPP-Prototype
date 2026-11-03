@@ -6,6 +6,7 @@ exports.getDesiredCameras = async (req, res) => {
       `SELECT camera_id, rtsp_url, assigned_room_id
        FROM cameras
        WHERE desired_connection_state = 'connected'
+         AND source_type = 'rtsp_yolo'
        ORDER BY camera_id`
     );
     res.json(cameras);
@@ -20,7 +21,8 @@ exports.markDesiredCamerasOffline = async (req, res) => {
     await db.query(
       `UPDATE cameras
        SET last_communication = NULL
-       WHERE desired_connection_state = 'connected'`
+       WHERE desired_connection_state = 'connected'
+         AND source_type = 'rtsp_yolo'`
     );
     res.json({ message: 'Camera communication state reset.' });
   } catch (err) {

@@ -41,7 +41,10 @@
             </div>
           </div>
           <div class="room-card-footer">
-            <span>threshold: {{ room.occupancy_threshold }}</span>
+            <span>
+              threshold: {{ room.occupancy_threshold }}
+              <span v-if="room.occupancy_source"> · {{ occupancySourceLabel(room.occupancy_source) }}</span>
+            </span>
             <div class="room-card-actions">
               <i class="ti ti-edit" title="edit room" @click="openEditModal(room)" />
               <i class="ti ti-trash" title="delete room" @click="confirmDelete(room)" />
@@ -67,13 +70,14 @@
               <th>room name</th>
               <th>capacity limit</th>
               <th>threshold</th>
-              <th>current occupancy</th>
+              <th>latest measured count</th>
+              <th>latest measurement</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="rooms.length === 0">
-              <td colspan="5" style="padding:16px 0; color:var(--color-text-muted); font-size:13px;">
+              <td colspan="6" style="padding:16px 0; color:var(--color-text-muted); font-size:13px;">
                 no rooms configured yet
               </td>
             </tr>
@@ -82,6 +86,7 @@
               <td class="muted">{{ room.capacity_limit }} people</td>
               <td class="muted">{{ room.occupancy_threshold }} people</td>
               <td class="muted">{{ room.occupancy_count ?? '--' }}</td>
+              <td class="muted">{{ room.occupancy_source ? occupancySourceLabel(room.occupancy_source) : '--' }}</td>
               <td class="row-actions">
                 <i class="ti ti-edit" title="edit" @click="openEditModal(room)" style="margin-right:10px; cursor:pointer;" />
                 <i class="ti ti-trash" title="delete" @click="confirmDelete(room)" style="cursor:pointer;" />
@@ -189,16 +194,24 @@ async function refresh() {
 
     const occupancyMap = {}
     occupancyList.forEach(o => {
-      occupancyMap[o.room_id] = o.occupancy_count ?? 0
+      occupancyMap[o.room_id] = {
+        count: o.occupancy_count ?? 0,
+        source: o.source_type,
+      }
     })
 
     rooms.value = roomList.map(r => ({
       ...r,
-      occupancy_count: occupancyMap[r.room_id] ?? null
+      occupancy_count: occupancyMap[r.room_id]?.count ?? null,
+      occupancy_source: occupancyMap[r.room_id]?.source ?? null,
     }))
   } catch (err) {
     console.warn('Rooms refresh failed:', err.message)
   }
+}
+
+function occupancySourceLabel(sourceType) {
+  return sourceType === 'dahua_external' ? 'Dahua measured' : 'RTSP / YOLO measured'
 }
 
 usePolling(refresh, 5000)

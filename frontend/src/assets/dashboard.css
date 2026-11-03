@@ -393,6 +393,18 @@ body {
   padding: 3px 9px;
   border-radius: 20px;
 }
+.cam-live.camera-status-offline {
+  color: var(--color-danger);
+  background: var(--color-danger-bg);
+}
+.cam-live.camera-status-pending {
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+}
+.cam-live.camera-status-healthy {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+}
 /* DARK MODE YESSSSS IM FINALLY NOT BLIND WHEN I LOOK AT THE PAGE HOLY BAJEEZUS */
 
 html.dark {

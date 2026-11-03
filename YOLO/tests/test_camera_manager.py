@@ -176,6 +176,45 @@ class CameraWorkerTests(unittest.TestCase):
         self.assertEqual(sent, [(3, 3)])
         self.assertTrue(source.released)
 
+    def test_backend_reporting_continues_after_evaluation_sample_limit(self):
+        stop_event = threading.Event()
+        sent = []
+
+        class FakeSource:
+            def get_frame(self):
+                return object()
+
+            def release(self):
+                pass
+
+        class FakeDetector:
+            def detect_people(self, frame):
+                return 1, None
+
+        class FullRecorder:
+            def is_full(self):
+                return True
+
+            def record(self, *args):
+                raise AssertionError("A full recorder must not be used.")
+
+        class FakeBackend:
+            def send_occupancy(self, camera_id, people):
+                sent.append((camera_id, people))
+                stop_event.set()
+
+        run_camera_worker(
+            camera(4),
+            stop_event,
+            FakeBackend(),
+            lambda url: FakeSource(),
+            FakeDetector,
+            frame_interval_seconds=0,
+            evaluation_recorder=FullRecorder(),
+        )
+
+        self.assertEqual(sent, [(4, 1)])
+
 
 class CameraSourceTests(unittest.TestCase):
     def test_opens_with_rtsp_timeouts_and_releases(self):

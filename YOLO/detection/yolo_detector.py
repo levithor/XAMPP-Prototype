@@ -8,22 +8,17 @@ class YOLODetector:
         self.model = YOLO("yolov8n.pt")
 
     def detect_people(self, frame):
-
-        results = self.model(frame)
-
-        people = 0
-
-        for result in results:
-            for cls in result.boxes.cls:
-                if int(cls) == 0:
-                    people += 1
+        results = self.model(frame, classes=[0])
+        people = sum(len(result.boxes) for result in results if result.boxes is not None)
 
         return people, results
-    
+
+    @staticmethod
+    def annotate_detections(results):
+        return results[0].plot()
+
     def save_detection(self, results, output_path):
-
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
-        annotated = results[0].plot()
-
-        cv2.imwrite(output_path, annotated)
+        output_dir = os.path.dirname(output_path)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+        cv2.imwrite(output_path, self.annotate_detections(results))

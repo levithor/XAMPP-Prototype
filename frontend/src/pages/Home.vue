@@ -27,15 +27,15 @@
         </div>
         <div class="stat-card">
           <div class="stat-icon green"><i class="ti ti-user" /></div>
-          <div class="stat-label">total occupants now</div>
+          <div class="stat-label">latest measured occupants</div>
           <div class="stat-value">{{ stats.totalOccupants }}</div>
-          <div class="stat-sub">across all active rooms</div>
+          <div class="stat-sub">latest room measurements; inferred states excluded</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon blue"><i class="ti ti-camera" /></div>
-          <div class="stat-label">cameras online</div>
+          <div class="stat-label">RTSP online</div>
           <div class="stat-value">{{ stats.camerasOnline }}</div>
-          <div class="stat-sub">of {{ cameras.length }} configured</div>
+          <div class="stat-sub">{{ stats.rtspCameraCount }} RTSP · {{ stats.dahuaSyncHealthy }} Dahua sync healthy</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon red"><i class="ti ti-alert-circle" /></div>
@@ -54,6 +54,9 @@
           <router-link to="/rooms" class="section-link" style="text-decoration:none;">
             see all rooms <i class="ti ti-arrow-right" style="font-size:12px" />
           </router-link>
+        </div>
+        <div class="topbar-sub" style="margin-bottom:10px;">
+          Room counts show the latest measured occupancy event; inferred zero is shown separately on Cameras.
         </div>
         <div class="room-grid">
           <div v-for="room in rooms" :key="room.room_id" class="room-card">
@@ -75,7 +78,7 @@
               </div>
             </div>
             <div class="room-meta">
-              {{ room.camera_id ? 'cam ' + room.camera_id : 'no camera' }}
+              {{ occupancySourceLabel(room) }}
               &nbsp;·&nbsp; {{ timeAgo(room.recorded_at) }}
             </div>
           </div>
@@ -129,10 +132,8 @@
               <div class="cam-name">{{ cam.camera_name }}</div>
               <div class="cam-loc">{{ roomName(cam.assigned_room_id) }}</div>
             </div>
-            <span v-if="cam.status === 'online'" class="cam-live">live</span>
-            <span v-else class="cam-live"
-                  style="color:var(--color-danger); background:var(--color-danger-bg);">
-              offline
+            <span class="cam-live" :class="cameraStatusClass(cam)">
+              {{ cameraStatusLabel(cam) }}
             </span>
           </div>
         </div>
@@ -188,15 +189,50 @@ const stats = computed(() => ({
   totalRooms:     rooms.value.length,
   occupiedRooms:  rooms.value.filter(r => (r.occupancy_count ?? 0) > 0).length,
   totalOccupants: rooms.value.reduce((s, r) => s + (r.occupancy_count ?? 0), 0),
-  camerasOnline:  cameras.value.filter(c => c.status === 'online').length,
+  camerasOnline:  cameras.value.filter(c => c.source_type !== 'dahua_external' && c.status === 'online').length,
+  rtspCameraCount: cameras.value.filter(c => c.source_type !== 'dahua_external').length,
+  dahuaSyncHealthy: cameras.value.filter(c =>
+    c.source_type === 'dahua_external' && c.synchronization_health === 'healthy'
+  ).length,
   activeAlerts:   activeAlerts.value.length,
 }))
 
 const statusText = computed(() =>
   apiOnline.value
-    ? `system online · ${cameras.value.filter(c => c.status === 'online').length} cameras live`
+    ? `system online · ${stats.value.camerasOnline} RTSP online · ${stats.value.dahuaSyncHealthy} Dahua sync healthy`
     : 'system offline · check backend'
 )
+
+function occupancySourceLabel(room) {
+  if (!room.recorded_at) return 'no measurement yet'
+  const source = room.source_type === 'dahua_external' ? 'Dahua' : 'RTSP / YOLO'
+  return room.camera_id
+    ? `${source} measured · cam ${room.camera_id}`
+    : `${source} measured · camera removed`
+}
+
+function cameraStatusLabel(cam) {
+  if (cam.source_type !== 'dahua_external') {
+    return cam.status === 'online' ? 'RTSP online' : 'RTSP offline'
+  }
+  const sync = cam.synchronization_health || (cam.desired_connection_state === 'connected' ? 'pending' : 'disabled')
+  const state = cam.external_occupancy_status
+  if (state === 'measured') return `Dahua ${sync} · ${cam.external_occupancy_count} measured`
+  if (state === 'inferred_zero') return `Dahua ${sync} · inferred zero`
+  if (state === 'stale') return `Dahua ${sync} · stale`
+  return `Dahua ${sync} · ${state || 'unknown'}`
+}
+
+function cameraStatusClass(cam) {
+  if (cam.source_type !== 'dahua_external') {
+    return cam.status === 'online' ? '' : 'camera-status-offline'
+  }
+  return cam.synchronization_health === 'healthy'
+    ? 'camera-status-healthy'
+    : cam.synchronization_health === 'error'
+      ? 'camera-status-offline'
+      : 'camera-status-pending'
+}
 
 function roomName(roomId) {
   if (!roomId) return 'unassigned'
